@@ -1,0 +1,81 @@
+# Repository Guidelines
+
+## Purpose and authority
+
+This repository defines **Trail**, an independent mobile fitness recording and review product. `PRD.md` is the source of truth for v1 product requirements. `product.md` summarizes product intent and decisions, `Architecture.md` defines the target technical design, and `Tasks.md` tracks delivery. If these documents conflict, follow `PRD.md`, record the discrepancy, and update the derived document in the same change.
+
+Do not describe or market Trail as Strava, and do not add social feeds, follows, kudos, comments, clubs, segments, leaderboards, wearable integrations, file imports, subscriptions, or a web application to v1.
+
+## Repository state and target structure
+
+The repository is currently documentation-only; no application scaffold or executable commands exist yet. The intended monorepo layout is:
+
+```text
+apps/mobile/          Expo React Native application
+apps/api/             Node.js TypeScript REST API
+packages/contracts/   Shared API schemas and generated/inferred types
+packages/domain/      Pure geo, split, units, and activity calculations
+packages/config/      Shared TypeScript/lint configuration
+infra/                Local and deployment infrastructure
+PRD.md                Authoritative v1 requirements
+product.md            Product brief and decision register
+Architecture.md       Target system design
+Tasks.md              Ordered implementation backlog
+ImplementationPlan.md Phase-by-phase execution and delegation gates
+```
+
+Do not create this structure until implementation is explicitly requested. The selected baseline is Node 22, pnpm workspaces, Expo SDK 56 with Expo's React Native version, Fastify, Zod, Drizzle/Postgres, Vitest, ESLint, and Prettier. Local infrastructure is Docker Postgres 17, MinIO, and Mailpit. Document actual commands after bootstrap; these selections do not mean bootstrap is complete.
+
+## Engineering principles
+
+- Build offline-first recording. GPS capture and local save must never depend on network availability.
+- Treat the local recording session as a durable state machine. Persist filtered points at least every five seconds or every configured point batch and recover after process death.
+- Use client-generated UUIDs and idempotent API writes so retries cannot duplicate activities.
+- Store canonical values in SI units and UTC. Apply metric/imperial and locale formatting only at presentation boundaries.
+- Keep tracks and photos private to their owner. Enforce ownership in the API, not only in the client.
+- Never log passwords, tokens, signed URLs, raw GPS tracks, photo metadata, or other sensitive payloads.
+- Keep map attribution visible and never use OpenStreetMap Foundation public tile servers for distributed builds.
+- Prefer pure, deterministic functions for filtering, distance, elapsed/moving time, splits, elevation smoothing, and unit conversion.
+- Keep provider integrations behind interfaces so development and beta map, routing, elevation, email, telemetry, and object-storage providers can differ.
+- Enforce stable client UUID idempotency, 100,000 filtered points per activity, retained filtered points in v1, and photo limits of 10 items/10 MB input each through shared Zod contracts.
+- Use 15-minute access tokens and rotating 30-day refresh-token families; reuse detection revokes the family.
+- Route snapping is deferred from v1. Never substitute a public demo routing API. v1 elevation is smoothed GPS; OpenTopoData is a later self-hosted adapter.
+- Beta services are Koyeb free API, Neon free Postgres, Cloudflare R2, Resend SMTP, and OpenFreeMap. Treat Koyeb as no-SLA and scale-to-zero; visible attribution and retry/cold-start UX are mandatory.
+- Emit structured logs and OpenTelemetry without raw GPS or media metadata. Sentry/GlitchTip is optional and must be scrubbed before enablement.
+
+## Coding conventions
+
+Use TypeScript in strict mode. Use descriptive names, small modules, explicit domain types, and schema validation at every API boundary. Prefer named exports and avoid default exports unless required by the framework. Use `camelCase` for variables/functions, `PascalCase` for React components and types, and `kebab-case` for route-independent filenames. Database identifiers and API wire fields use `snake_case` only where defined by the contract; map them deliberately rather than mixing conventions.
+
+Do not duplicate product constants across mobile and API. Sports, unit systems, sync states, limits, error codes, and request/response schemas belong in shared contracts. Do not put GPS calculations in React components or HTTP handlers.
+
+## Tests and verification
+
+Every requirement-bearing change should reference one or more PRD IDs such as `REC-7` or `ACT-4`. Add tests at the lowest useful level:
+
+- Unit tests for domain calculations and state transitions.
+- API integration tests for authentication, authorization, validation, idempotency, and persistence.
+- Mobile integration tests for local recording, sync queue, and recovery.
+- Real-device scripts for permissions, background GPS, process death, offline save/upload, and battery behavior.
+
+Before marking work complete, run the repository’s formatter, lint, typecheck, relevant tests, and build commands once they exist. Background recording cannot be accepted from simulator results alone; the 20-minute locked-screen scripts in `PRD.md` and `Tasks.md` are release gates.
+
+## Agent delegation
+
+Use the repository roles by exact `.devin` name:
+
+- **`swe-worker`** owns scaffolding, contracts/domain/data, API/mobile implementation, infrastructure, migrations, automated tests, and focused technical documentation. Assign one bounded work package at a time and require exact commands/results in its handoff.
+- **`design-specialist`** owns interaction/UI execution, accessibility behavior, visual states, and device-preview review when an approved design source exists. It does not invent missing product behavior or override PRD acceptance criteria.
+- The parent orchestrator owns sequencing, cross-package integration, decision consistency, release gates, external-provider coordination, and final review. Do not ask either worker to mark a phase complete without acceptance evidence.
+
+Follow `ImplementationPlan.md` phase gates and commit boundaries. Parallel work is allowed only when contracts are accepted and file ownership does not overlap. No agent may claim app implementation is complete while this repository remains documentation-only.
+
+## Changes, commits, and pull requests
+
+The only existing commit is `init`, so no mature commit convention exists. Use concise imperative subjects, preferably Conventional Commit prefixes such as `feat:`, `fix:`, `test:`, `docs:`, and `chore:`. Keep commits focused. Pull requests should state the user outcome, PRD IDs, data/API changes, permission or privacy impact, screenshots for UI work, and exact verification performed. Call out migrations, provider dependencies, feature flags, and unresolved risks.
+
+Never commit credentials, provider keys, `.env` files, production GPS data, or user photos. Destructive migrations, account deletion behavior, token changes, and storage cleanup require explicit tests and reviewer attention.
+
+## Definition of done
+
+A task is done only when implementation, migrations/contracts, tests, error and offline states, accessibility, documentation, and observability are addressed as applicable. Update `Tasks.md` status and any affected decision in `Architecture.md` or `product.md`. A v1 feature is not release-ready until its PRD acceptance criteria pass on supported iOS and Android devices.

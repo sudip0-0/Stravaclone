@@ -1,0 +1,12 @@
+packages:
+  - apps/*
+  - packages/*
+
+minimumReleaseAge: 10080
+injectWorkspacePackages: true
+
+# Explicitly reviewed build scripts only: esbuild installs its platform binary;
+# protobufjs generates its package-local runtime artifacts.
+onlyBuiltDependencies:
+  - esbuild
+  - protobufjs

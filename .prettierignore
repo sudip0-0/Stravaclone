@@ -1,0 +1,6 @@
+**/dist
+**/.expo
+**/coverage
+**/node_modules
+pnpm-lock.yaml
+PRD.md

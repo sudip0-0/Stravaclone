@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "Trail",
+    "slug": "trail",
+    "version": "0.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "com.trailapp.mobile",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.trailapp.mobile"
+    }
+  }
+}
