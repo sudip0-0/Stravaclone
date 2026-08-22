@@ -4,6 +4,7 @@ import Fastify, {
   type FastifyServerOptions,
 } from 'fastify';
 import type { ErrorCode, ErrorEnvelope } from '@trail/contracts';
+import { registerActivityRoutes } from './activities/routes.js';
 import { registerAuthRoutes } from './auth/routes.js';
 import type { ApiConfig } from './config.js';
 import { ApplicationError } from './http/application-error.js';
@@ -158,6 +159,7 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
         : options.config.TRUST_PROXY_HOPS,
   });
   registerAuthRoutes(app, options.config, options.providers);
+  registerActivityRoutes(app, options.config, options.providers);
   let readinessCache:
     | { readonly checkedAt: number; readonly ready: boolean }
     | undefined;

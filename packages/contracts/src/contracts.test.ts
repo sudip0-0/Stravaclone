@@ -53,11 +53,12 @@ const basePoint = {
 };
 
 const baseActivityRequest = {
+  payload_version: 1,
   id,
   sport: 'run',
   started_at: startedAt,
   ended_at: endedAt,
-  split_units: 'metric',
+  pauses: [],
   points: [basePoint],
 };
 
@@ -80,7 +81,7 @@ const baseActivity = {
   ended_at: endedAt,
   route_id: null,
   stats: baseStats,
-  polyline: '_p~iF~ps|U',
+  polylines: ['_p~iF~ps|U'],
   splits: [
     {
       index: 1,
@@ -282,6 +283,23 @@ describe('activity contracts', () => {
     ).toBe(false);
   });
 
+  it('validates ordered non-overlapping pauses within activity bounds', () => {
+    expect(
+      createActivityRequestSchema.safeParse({
+        ...baseActivityRequest,
+        pauses: [
+          { started_at: startedAt, ended_at: endedAt },
+          { started_at: startedAt, ended_at: endedAt },
+        ],
+      }).success,
+    ).toBe(false);
+    expect(
+      createActivityRequestSchema.safeParse({
+        ...baseActivityRequest,
+        pauses: [{ started_at: startedAt, ended_at: endedAt }],
+      }).success,
+    ).toBe(true);
+  });
   it('requires one-based split indices', () => {
     expect(activitySplitSchema.safeParse(baseActivity.splits[0]).success).toBe(
       true,

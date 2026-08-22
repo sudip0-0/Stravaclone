@@ -66,6 +66,8 @@ export function syntheticActivity(
     elevationGainM: 8,
     elevationLossM: 6,
     polyline: '??gEgE',
+    polylines: ['??gEgE'],
+    ingestHash: 'a'.repeat(64),
     ...overrides,
   };
 }

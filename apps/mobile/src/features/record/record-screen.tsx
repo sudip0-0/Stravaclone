@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { randomUUID } from 'expo-crypto';
 import { classifyAccuracy, type ActivitySport } from '@trail/domain';
 import { Body, Button, ScreenTitle, StatusBanner } from '../../components/ui';
+import { notifyActivitySavedLocally } from '../activity-sync/sync-runtime';
 import { useAppState } from '../../state/app-state';
 import { spacing, useTheme } from '../../theme/tokens';
 import { recordingRepository } from '../../storage/recording-database';
@@ -313,6 +314,7 @@ export function RecordScreen() {
     setBusy(true);
     try {
       setSession(await coordinator.save(session));
+      notifyActivitySavedLocally();
     } catch (error) {
       setWarning(
         error instanceof Error ? error.message : 'Could not save locally.',

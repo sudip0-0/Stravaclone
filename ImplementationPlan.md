@@ -342,6 +342,14 @@ Upload each local activity exactly once, compute trusted canonical stats, and pr
 3. `feat: add activity list and detail`
 4. `perf: validate long activity rendering`
 
+### Local implementation status (Phase 4)
+
+- **Implemented locally, uncommitted:** pre-body authenticated and admission-limited owner-scoped activity create/list/detail/update/delete, versioned normalized immutable SHA-256 source identity, opaque UUID conflicts, pause-aware transactionally recomputed SI metrics without pause bridging, retained points/pauses, dual canonical split support for profile-unit changes, repeatable-read owner-joined detail snapshots, GPS-smoothed elevation, and pre-delete object cleanup outbox trigger.
+- Mobile SQLite migrations recover interrupted uploads, enforce one durable create job per entity, and persist ordered pause intervals transactionally across pause/resume/process recovery. The sync runtime triggers on local save, authenticated restore, foreground, connectivity, persisted retry deadlines, and manual retry; timeout/unknown-commit retries retain the versioned canonical source, while confirmed responses transactionally remove full local source data and the completed job.
+- Activity review includes bounded reverse-chronological pagination, local pending rows/banner, explicit retry, empty/loading/offline/error handling, opt-in network map with fit bounds and attribution, unit-aware stats/splits, partial split labels, GPS-smoothed elevation disclosure, edit/delete, and a photos placeholder.
+- Automated bounds cover 200 merged list rows and at most 1,000 decoded map points. API Postgres tests cover replay/conflict/cross-owner/100,001 points/route ownership/canonical totals/pagination/update/delete/outbox; mobile tests cover offline retry, reconnect, timeout after commit, backoff, restart, one flight, auth/terminal/conflict classification, units, pending/empty merge, elevation labeling, and geometry limits.
+- **Manual blockers remain:** signed physical-device network-transition and mid-range five-hour map/list performance/accessibility evidence. These are documented in `Phase4DeviceQA.md`; they are not represented as passed.
+
 ---
 
 ## Phase 5 — Photos

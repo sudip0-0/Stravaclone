@@ -67,10 +67,17 @@ export const activityPointsSchema = z
   .min(1)
   .max(MAX_ACTIVITY_POINTS);
 
+export const activityPauseSchema = z.strictObject({
+  started_at: utcDateTimeSchema,
+  ended_at: utcDateTimeSchema,
+});
+export type ActivityPause = z.infer<typeof activityPauseSchema>;
+
 const activityTitleSchema = z.string().trim().min(1).max(200);
 
 export const createActivityRequestSchema = z
   .strictObject({
+    payload_version: z.literal(1),
     id: uuidSchema,
     sport: sportSchema,
     title: activityTitleSchema.nullable().optional(),
@@ -78,7 +85,7 @@ export const createActivityRequestSchema = z
     started_at: utcDateTimeSchema,
     ended_at: utcDateTimeSchema,
     route_id: uuidSchema.nullable().optional(),
-    split_units: unitSystemSchema,
+    pauses: z.array(activityPauseSchema).max(10_000).default([]),
     points: activityPointsSchema,
   })
   .superRefine((activity, context) => {
@@ -97,6 +104,25 @@ export const createActivityRequestSchema = z
         message: 'Activity exceeds the 12-hour limit',
       });
     }
+    let lastPauseEnd = Number.NEGATIVE_INFINITY;
+    activity.pauses.forEach((pause, index) => {
+      const pauseStart = Date.parse(pause.started_at);
+      const pauseEnd = Date.parse(pause.ended_at);
+      if (
+        pauseEnd <= pauseStart ||
+        pauseStart < startedAt ||
+        pauseEnd > endedAt ||
+        pauseStart < lastPauseEnd
+      ) {
+        context.addIssue({
+          code: 'custom',
+          path: ['pauses', index],
+          message:
+            'Pause intervals must be ordered, non-overlapping, and within activity bounds',
+        });
+      }
+      lastPauseEnd = pauseEnd;
+    });
     let lastSequence = -1;
     let lastTimestamp = Number.NEGATIVE_INFINITY;
     activity.points.forEach((point, index) => {
@@ -140,7 +166,7 @@ const activityObjectSchema = z.strictObject({
   ended_at: utcDateTimeSchema,
   route_id: uuidSchema.nullable(),
   stats: activityStatsSchema,
-  polyline: z.string(),
+  polylines: z.array(z.string().min(1)).min(1),
   splits: z.array(activitySplitSchema),
   elevation: elevationProfileSchema,
   created_at: utcDateTimeSchema,
@@ -160,13 +186,27 @@ export const activitySummarySchema = activityObjectSchema.pick({
   started_at: true,
   stats: true,
 });
+export type ActivitySummary = z.infer<typeof activitySummarySchema>;
+
+export const activityListResponseSchema = z.strictObject({
+  items: z.array(activitySummarySchema).max(200),
+  page: z.strictObject({
+    next_cursor: z.string().min(1).max(2048).nullable(),
+    has_more: z.boolean(),
+  }),
+});
+export type ActivityListResponse = z.infer<typeof activityListResponseSchema>;
 
 export const updateActivityRequestSchema = z
   .strictObject({
     title: activityTitleSchema.nullable().optional(),
     notes: z.string().max(10_000).nullable().optional(),
-    sport: sportSchema.optional(),
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: 'At least one field is required',
   });
+export type UpdateActivityRequest = z.infer<typeof updateActivityRequestSchema>;
+
+export const deleteActivityQuerySchema = z.strictObject({
+  confirmation: z.literal('DELETE'),
+});

@@ -119,7 +119,7 @@ Minimum local records:
 - `sync_jobs`: stable operation ID, entity ID, operation, attempt count, next attempt, last safe error code.
 - `pending_photos`: local URI, activity ID, state, metadata, upload attempt data.
 
-Sync runs after local save, app foreground, authentication refresh, and connectivity restoration. Use exponential backoff with jitter and bounded retries before requiring user action. A 401 triggers one coordinated token refresh and request replay. The UI distinguishes `saving locally`, `waiting to upload`, `uploading`, `synced`, and `needs attention`.
+Sync runs after local save, app foreground, authentication refresh, connectivity restoration, and persisted retry deadlines. Use exponential backoff with jitter and bounded retries before requiring user action. A 401 triggers one coordinated token refresh and request replay. The UI distinguishes `saving locally`, `waiting to upload`, `uploading`, `synced`, and `needs attention`. Local source points, pauses, session, and job are retained through timeout/unknown-commit states; after a confirmed canonical server response they are deleted together in one SQLite transaction rather than retaining an unbounded local synced copy.
 
 ### 4.5 Platform behavior
 

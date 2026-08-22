@@ -1,5 +1,11 @@
 import * as SQLite from 'expo-sqlite';
+import type { CreateActivityRequest } from '@trail/contracts';
 import type { TrackPoint } from '@trail/domain';
+import type {
+  SyncFailureKind,
+  SyncJob,
+  SyncRepository,
+} from '../features/activity-sync/sync-engine';
 import { assertTransition } from '../features/record/recording-state-machine';
 import {
   ABANDONED_DRAFT_RETENTION_MS,
@@ -36,6 +42,16 @@ interface SessionRow {
   latest_raw_fix_at_ms: number | null;
   stop_reason: RecordingSession['stopReason'];
   error_code: RecordingSession['errorCode'];
+}
+interface SyncJobRow {
+  id: string;
+  entity_id: string;
+  owner_user_id: string;
+  attempt_count: number;
+}
+interface PauseRow {
+  started_at_ms: number;
+  ended_at_ms: number;
 }
 interface PointRow {
   sequence: number;
@@ -109,6 +125,27 @@ ALTER TABLE recording_sessions ADD COLUMN error_code TEXT
   CHECK (error_code IS NULL OR error_code IN ('task_payload_overflow','persistence_failed'));
 PRAGMA user_version = 4;`;
 
+const MIGRATION_5 = `
+UPDATE sync_jobs SET state='pending' WHERE state='uploading';
+DELETE FROM sync_jobs WHERE rowid NOT IN (
+  SELECT MIN(rowid) FROM sync_jobs GROUP BY entity_id,operation
+);
+CREATE UNIQUE INDEX IF NOT EXISTS sync_jobs_entity_operation_unique ON sync_jobs(entity_id,operation);
+PRAGMA user_version = 5;`;
+
+const MIGRATION_6 = `
+CREATE TABLE IF NOT EXISTS recording_pauses (
+ session_id TEXT NOT NULL REFERENCES recording_sessions(id) ON DELETE CASCADE,
+ sequence INTEGER NOT NULL CHECK (sequence >= 0), started_at_ms INTEGER NOT NULL,
+ ended_at_ms INTEGER, PRIMARY KEY (session_id,sequence),
+ CHECK (ended_at_ms IS NULL OR ended_at_ms > started_at_ms)
+);
+INSERT OR IGNORE INTO recording_pauses (session_id,sequence,started_at_ms,ended_at_ms)
+ SELECT id,0,paused_at_ms,CASE WHEN state='paused' THEN NULL ELSE COALESCE(stopped_at_ms,updated_at_ms) END
+ FROM recording_sessions WHERE paused_at_ms IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS one_open_pause_per_session ON recording_pauses(session_id) WHERE ended_at_ms IS NULL;
+PRAGMA user_version = 6;`;
+
 function mapSession(row: SessionRow): RecordingSession {
   return {
     id: row.id,
@@ -148,7 +185,9 @@ export class PointLimitReachedError extends Error {
   }
 }
 
-export class SQLiteRecordingRepository implements RecordingRepository {
+export class SQLiteRecordingRepository
+  implements RecordingRepository, SyncRepository
+{
   private databasePromise: Promise<SQLite.SQLiteDatabase> | null = null;
   private migrationPromise: Promise<void> | null = null;
 
@@ -196,7 +235,15 @@ export class SQLiteRecordingRepository implements RecordingRepository {
           await this.runMigration(db, MIGRATION_3);
           version = 3;
         }
-        if (version < 4) await this.runMigration(db, MIGRATION_4);
+        if (version < 4) {
+          await this.runMigration(db, MIGRATION_4);
+          version = 4;
+        }
+        if (version < 5) {
+          await this.runMigration(db, MIGRATION_5);
+          version = 5;
+        }
+        if (version < 6) await this.runMigration(db, MIGRATION_6);
         await db.execAsync(
           'PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA cipher_memory_security = ON; PRAGMA secure_delete = ON;',
         );
@@ -235,12 +282,24 @@ export class SQLiteRecordingRepository implements RecordingRepository {
   ): Promise<RecordingSession | null> {
     const db = await this.database();
     await db.withExclusiveTransactionAsync(async (tx) => {
+      const quarantined = await tx.getAllAsync<{ id: string }>(
+        `SELECT id FROM recording_sessions WHERE owner_user_id<>? AND state='recording'`,
+        ownerUserId,
+      );
       await tx.runAsync(
-        `UPDATE recording_sessions SET state='paused',paused_at_ms=COALESCE(paused_at_ms,?),updated_at_ms=? WHERE owner_user_id<>? AND state='recording'`,
+        `UPDATE recording_sessions SET state='paused',paused_at_ms=?,updated_at_ms=? WHERE owner_user_id<>? AND state='recording'`,
         nowMs,
         nowMs,
         ownerUserId,
       );
+      for (const session of quarantined)
+        await tx.runAsync(
+          `INSERT OR IGNORE INTO recording_pauses (session_id,sequence,started_at_ms)
+           SELECT ?,COALESCE(MAX(sequence)+1,0),? FROM recording_pauses WHERE session_id=?`,
+          session.id,
+          nowMs,
+          session.id,
+        );
       await tx.runAsync(
         `UPDATE recording_sessions SET state='recording',started_at_ms=COALESCE(started_at_ms,created_at_ms),updated_at_ms=? WHERE owner_user_id=? AND state='starting'`,
         nowMs,
@@ -295,12 +354,25 @@ export class SQLiteRecordingRepository implements RecordingRepository {
     const ownerClause = ownerUserId === null ? '' : ' AND owner_user_id=?';
     const parameters =
       ownerUserId === null ? [nowMs, nowMs] : [nowMs, nowMs, ownerUserId];
-    await (
-      await this.database()
-    ).runAsync(
-      `UPDATE recording_sessions SET state='paused',paused_at_ms=COALESCE(paused_at_ms,?),updated_at_ms=? WHERE state='recording'${ownerClause}`,
-      ...parameters,
-    );
+    const db = await this.database();
+    await db.withExclusiveTransactionAsync(async (tx) => {
+      const sessions = await tx.getAllAsync<{ id: string }>(
+        `SELECT id FROM recording_sessions WHERE state='recording'${ownerClause}`,
+        ...(ownerUserId === null ? [] : [ownerUserId]),
+      );
+      await tx.runAsync(
+        `UPDATE recording_sessions SET state='paused',paused_at_ms=?,updated_at_ms=? WHERE state='recording'${ownerClause}`,
+        ...parameters,
+      );
+      for (const session of sessions)
+        await tx.runAsync(
+          `INSERT OR IGNORE INTO recording_pauses (session_id,sequence,started_at_ms)
+           SELECT ?,COALESCE(MAX(sequence)+1,0),? FROM recording_pauses WHERE session_id=?`,
+          session.id,
+          nowMs,
+          session.id,
+        );
+    });
   }
   async getRecoverableSession(ownerUserId: string) {
     const row = await (
@@ -372,24 +444,42 @@ export class SQLiteRecordingRepository implements RecordingRepository {
     > = {},
   ) {
     assertTransition(from, to);
-    const result = await (
-      await this.database()
-    ).runAsync(
-      `UPDATE recording_sessions SET state=?,updated_at_ms=?,started_at_ms=COALESCE(?,started_at_ms),stopped_at_ms=COALESCE(?,stopped_at_ms),paused_at_ms=?,accumulated_paused_ms=COALESCE(?,accumulated_paused_ms),stop_reason=COALESCE(?,stop_reason),error_code=CASE WHEN ?=1 THEN ? ELSE error_code END WHERE id=? AND owner_user_id=? AND state=?`,
-      to,
-      nowMs,
-      patch.startedAtMs ?? null,
-      patch.stoppedAtMs ?? null,
-      patch.pausedAtMs ?? null,
-      patch.accumulatedPausedMs ?? null,
-      patch.stopReason ?? null,
-      patch.errorCode !== undefined ? 1 : 0,
-      patch.errorCode ?? null,
-      sessionId,
-      ownerUserId,
-      from,
-    );
-    if (result.changes !== 1)
+    const db = await this.database();
+    let changes = 0;
+    await db.withExclusiveTransactionAsync(async (tx) => {
+      const result = await tx.runAsync(
+        `UPDATE recording_sessions SET state=?,updated_at_ms=?,started_at_ms=COALESCE(?,started_at_ms),stopped_at_ms=COALESCE(?,stopped_at_ms),paused_at_ms=?,accumulated_paused_ms=COALESCE(?,accumulated_paused_ms),stop_reason=COALESCE(?,stop_reason),error_code=CASE WHEN ?=1 THEN ? ELSE error_code END WHERE id=? AND owner_user_id=? AND state=?`,
+        to,
+        nowMs,
+        patch.startedAtMs ?? null,
+        patch.stoppedAtMs ?? null,
+        patch.pausedAtMs ?? null,
+        patch.accumulatedPausedMs ?? null,
+        patch.stopReason ?? null,
+        patch.errorCode !== undefined ? 1 : 0,
+        patch.errorCode ?? null,
+        sessionId,
+        ownerUserId,
+        from,
+      );
+      changes = result.changes;
+      if (changes !== 1) return;
+      if (from === 'recording' && to === 'paused')
+        await tx.runAsync(
+          `INSERT INTO recording_pauses (session_id,sequence,started_at_ms)
+           SELECT ?,COALESCE(MAX(sequence)+1,0),? FROM recording_pauses WHERE session_id=?`,
+          sessionId,
+          nowMs,
+          sessionId,
+        );
+      if (from === 'paused' && to !== 'paused')
+        await tx.runAsync(
+          `UPDATE recording_pauses SET ended_at_ms=? WHERE session_id=? AND ended_at_ms IS NULL`,
+          nowMs,
+          sessionId,
+        );
+    });
+    if (changes !== 1)
       throw new Error('Recording state changed or is not owned by this user.');
     return (await this.getSession(ownerUserId, sessionId))!;
   }
@@ -399,16 +489,16 @@ export class SQLiteRecordingRepository implements RecordingRepository {
     errorCode: Exclude<RecordingSession['errorCode'], null>,
     nowMs: number,
   ) {
-    await (
-      await this.database()
-    ).runAsync(
-      `UPDATE recording_sessions SET state='paused',paused_at_ms=COALESCE(paused_at_ms,?),updated_at_ms=?,error_code=? WHERE id=? AND owner_user_id=? AND state='recording'`,
-      nowMs,
-      nowMs,
-      errorCode,
-      sessionId,
-      ownerUserId,
-    );
+    const session = await this.getSession(ownerUserId, sessionId);
+    if (session?.state === 'recording')
+      await this.transition(
+        ownerUserId,
+        sessionId,
+        'recording',
+        'paused',
+        nowMs,
+        { pausedAtMs: nowMs, errorCode },
+      );
   }
   async recordRawFix(
     ownerUserId: string,
@@ -524,13 +614,215 @@ export class SQLiteRecordingRepository implements RecordingRepository {
     );
   }
   async hasPendingSync(ownerUserId: string) {
+    return (await this.pendingCount(ownerUserId)) > 0;
+  }
+  async pendingActivityRows(ownerUserId: string) {
+    const rows = await (
+      await this.database()
+    ).getAllAsync<SessionRow & { sync_state: string }>(
+      `SELECT recording_sessions.*,sync_jobs.state AS sync_state FROM recording_sessions
+       JOIN sync_jobs ON sync_jobs.entity_id=recording_sessions.id
+       WHERE recording_sessions.owner_user_id=? AND sync_jobs.state IN ('pending','uploading','needs_attention')
+       ORDER BY recording_sessions.started_at_ms DESC LIMIT 200`,
+      ownerUserId,
+    );
+    return rows.map((row) => ({
+      id: row.id,
+      sport: row.sport,
+      title: null,
+      started_at: new Date(
+        row.started_at_ms ?? row.created_at_ms,
+      ).toISOString(),
+      stats: {
+        distance_m: row.distance_m,
+        moving_time_s: Math.max(
+          0,
+          ((row.stopped_at_ms ?? row.updated_at_ms) -
+            (row.started_at_ms ?? row.created_at_ms) -
+            row.accumulated_paused_ms) /
+            1000,
+        ),
+        elapsed_time_s: Math.max(
+          0,
+          ((row.stopped_at_ms ?? row.updated_at_ms) -
+            (row.started_at_ms ?? row.created_at_ms)) /
+            1000,
+        ),
+        elevation_gain_m: 0,
+        elevation_loss_m: 0,
+        average_pace_s_per_km: null,
+        average_speed_mps: null,
+      },
+      pending: true as const,
+      syncStatus:
+        row.sync_state === 'uploading'
+          ? ('uploading' as const)
+          : row.sync_state === 'needs_attention'
+            ? ('needs_attention' as const)
+            : ('waiting_to_upload' as const),
+    }));
+  }
+  async pendingCount(ownerUserId: string) {
     const row = await (
       await this.database()
     ).getFirstAsync<{ count: number }>(
       `SELECT COUNT(*) AS count FROM sync_jobs WHERE owner_user_id=? AND state IN ('pending','uploading','needs_attention')`,
       ownerUserId,
     );
-    return (row?.count ?? 0) > 0;
+    return row?.count ?? 0;
+  }
+  async earliestNextAttemptAt(ownerUserId: string) {
+    const row = await (
+      await this.database()
+    ).getFirstAsync<{ next_attempt_at_ms: number }>(
+      `SELECT next_attempt_at_ms FROM sync_jobs
+       WHERE owner_user_id=? AND state='pending' ORDER BY next_attempt_at_ms LIMIT 1`,
+      ownerUserId,
+    );
+    return row?.next_attempt_at_ms ?? null;
+  }
+  async recoverInterruptedJobs(ownerUserId: string, nowMs: number) {
+    await (
+      await this.database()
+    ).runAsync(
+      `UPDATE sync_jobs SET state='pending',next_attempt_at_ms=?,updated_at_ms=? WHERE owner_user_id=? AND state='uploading'`,
+      nowMs,
+      nowMs,
+      ownerUserId,
+    );
+  }
+  async claimDueJob(
+    ownerUserId: string,
+    nowMs: number,
+  ): Promise<SyncJob | null> {
+    const db = await this.database();
+    const claimed: SyncJobRow[] = [];
+    await db.withExclusiveTransactionAsync(async (tx) => {
+      const row = await tx.getFirstAsync<SyncJobRow>(
+        `SELECT id,entity_id,owner_user_id,attempt_count FROM sync_jobs
+         WHERE owner_user_id=? AND state='pending' AND next_attempt_at_ms<=?
+         ORDER BY next_attempt_at_ms,created_at_ms LIMIT 1`,
+        ownerUserId,
+        nowMs,
+      );
+      if (!row) return;
+      const result = await tx.runAsync(
+        `UPDATE sync_jobs SET state='uploading',attempt_count=attempt_count+1,updated_at_ms=? WHERE id=? AND owner_user_id=? AND state='pending'`,
+        nowMs,
+        row.id,
+        ownerUserId,
+      );
+      if (result.changes === 1)
+        claimed.push({ ...row, attempt_count: row.attempt_count + 1 });
+    });
+    const row = claimed[0];
+    return row
+      ? {
+          id: row.id,
+          entityId: row.entity_id,
+          ownerUserId: row.owner_user_id,
+          attemptCount: row.attempt_count,
+        }
+      : null;
+  }
+  async activityPayload(
+    entityId: string,
+    ownerUserId: string,
+  ): Promise<CreateActivityRequest> {
+    const session = await this.getSession(ownerUserId, entityId);
+    if (
+      !session ||
+      session.state !== 'local_saved' ||
+      session.startedAtMs === null ||
+      session.stoppedAtMs === null
+    )
+      throw new Error('Local activity is not ready to upload.');
+    const points = await (
+      await this.database()
+    ).getAllAsync<PointRow>(
+      `SELECT sequence,latitude,longitude,elevation_m,accuracy_m,recorded_at_ms
+       FROM recording_points WHERE session_id=? ORDER BY sequence`,
+      entityId,
+    );
+    const pauses = await (
+      await this.database()
+    ).getAllAsync<PauseRow>(
+      `SELECT started_at_ms,ended_at_ms FROM recording_pauses
+       WHERE session_id=? AND ended_at_ms IS NOT NULL ORDER BY sequence`,
+      entityId,
+    );
+    return {
+      payload_version: 1,
+      id: session.id,
+      sport: session.sport,
+      title: null,
+      notes: null,
+      started_at: new Date(session.startedAtMs).toISOString(),
+      ended_at: new Date(session.stoppedAtMs).toISOString(),
+      route_id: null,
+      pauses: pauses.map((pause) => ({
+        started_at: new Date(pause.started_at_ms).toISOString(),
+        ended_at: new Date(pause.ended_at_ms).toISOString(),
+      })),
+      points: points.map((point) => ({
+        sequence: point.sequence,
+        latitude: point.latitude,
+        longitude: point.longitude,
+        elevation_m: point.elevation_m,
+        accuracy_m: point.accuracy_m,
+        recorded_at: new Date(point.recorded_at_ms).toISOString(),
+      })),
+    };
+  }
+  async completeJob(jobId: string, ownerUserId: string) {
+    const db = await this.database();
+    await db.withExclusiveTransactionAsync(async (tx) => {
+      const job = await tx.getFirstAsync<{ entity_id: string }>(
+        `SELECT entity_id FROM sync_jobs WHERE id=? AND owner_user_id=? AND state='uploading'`,
+        jobId,
+        ownerUserId,
+      );
+      if (!job) throw new Error('Uploading sync job was not found.');
+      await tx.runAsync(
+        `DELETE FROM recording_sessions WHERE id=? AND owner_user_id=?`,
+        job.entity_id,
+        ownerUserId,
+      );
+    });
+  }
+  async failJob(
+    jobId: string,
+    ownerUserId: string,
+    failure: SyncFailureKind,
+    safeCode: string,
+    nextAttemptAtMs: number,
+    nowMs: number,
+  ) {
+    const state =
+      failure === 'retryable' || failure === 'auth'
+        ? 'pending'
+        : 'needs_attention';
+    await (
+      await this.database()
+    ).runAsync(
+      `UPDATE sync_jobs SET state=?,last_safe_error_code=?,next_attempt_at_ms=?,updated_at_ms=? WHERE id=? AND owner_user_id=? AND state='uploading'`,
+      state,
+      safeCode.slice(0, 100),
+      nextAttemptAtMs,
+      nowMs,
+      jobId,
+      ownerUserId,
+    );
+  }
+  async retryNeedsAttention(ownerUserId: string, nowMs: number) {
+    await (
+      await this.database()
+    ).runAsync(
+      `UPDATE sync_jobs SET state='pending',next_attempt_at_ms=?,last_safe_error_code=NULL,updated_at_ms=? WHERE owner_user_id=? AND state='needs_attention'`,
+      nowMs,
+      nowMs,
+      ownerUserId,
+    );
   }
   async getOwnerCleanupMarker(ownerUserId: string) {
     const row = await (

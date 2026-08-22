@@ -65,6 +65,9 @@ describe('auth/account recording lifecycle', () => {
     await lifecycle(repository, stop).handleTerminalAuthLoss(null);
     expect(stop).toHaveBeenCalledOnce();
     expect((await repository.getRecoverableSession(A))?.state).toBe('paused');
+    expect(repository.pauses.get('a')).toEqual([
+      { startedAtMs: 100, endedAtMs: null },
+    ]);
   });
   it('attempts native stop in finally when cold no-profile DB migration fails', async () => {
     const repository = new MemoryRecordingRepository();

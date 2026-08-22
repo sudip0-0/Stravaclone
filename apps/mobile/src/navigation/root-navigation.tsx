@@ -25,6 +25,7 @@ import {
   YouScreen,
   type YouParamList,
 } from '../features/profile/profile-screens';
+import { ActivityStack } from '../features/activities/activity-screens';
 import { RecordScreen } from '../features/record/record-screen';
 import { useAppState } from '../state/app-state';
 import { useTheme } from '../theme/tokens';
@@ -167,9 +168,7 @@ function Shell() {
         })}
       >
         <Tabs.Screen name="Record" component={RecordScreen} />
-        <Tabs.Screen name="Activity">
-          {() => <BasicStack title="Activity" />}
-        </Tabs.Screen>
+        <Tabs.Screen component={ActivityStack} name="Activity" />
         <Tabs.Screen name="Routes">
           {() => <BasicStack title="Routes" />}
         </Tabs.Screen>

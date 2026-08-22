@@ -382,6 +382,8 @@ export const activities = trailSchema.table(
     elevationGainM: doublePrecision('elevation_gain_m').notNull(),
     elevationLossM: doublePrecision('elevation_loss_m').notNull(),
     polyline: text('polyline').notNull(),
+    polylines: jsonb('polylines').notNull(),
+    ingestHash: text('ingest_hash').notNull(),
     createdAt: utcTimestamp('created_at').defaultNow().notNull(),
     updatedAt: utcTimestamp('updated_at').defaultNow().notNull(),
   },
@@ -437,8 +439,37 @@ export const activities = trailSchema.table(
       sql`length(${table.polyline}) between 1 and 1000000`,
     ),
     check(
+      'activities_ingest_hash_check',
+      sql`${table.ingestHash} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
       'activities_updated_at_check',
       sql`${table.updatedAt} >= ${table.createdAt}`,
+    ),
+  ],
+);
+
+export const activityPauses = trailSchema.table(
+  'activity_pauses',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    activityId: uuid('activity_id')
+      .notNull()
+      .references(() => activities.id, { onDelete: 'cascade' }),
+    seq: integer('seq').notNull(),
+    startedAt: utcTimestamp('started_at').notNull(),
+    endedAt: utcTimestamp('ended_at').notNull(),
+  },
+  (table) => [
+    unique('activity_pauses_activity_seq_unique').on(
+      table.activityId,
+      table.seq,
+    ),
+    index('activity_pauses_activity_id_idx').on(table.activityId),
+    check('activity_pauses_seq_check', sql`${table.seq} >= 0`),
+    check(
+      'activity_pauses_time_check',
+      sql`${table.endedAt} > ${table.startedAt}`,
     ),
   ],
 );
@@ -690,6 +721,7 @@ export const foundationSchema = {
   refreshTokenFamilies,
   refreshTokens,
   activities,
+  activityPauses,
   activityPoints,
   activitySplits,
   activityElevationSamples,

@@ -112,6 +112,21 @@ describe('owner-scoped recording repository contract', () => {
       (await repository.getActiveSessionForBackground())?.ownerUserId,
     ).toBe(B);
   });
+  it('opens exact recovery pauses and closes them on resume', async () => {
+    const repository = new MemoryRecordingRepository();
+    const session = await create(repository, 'recovered', A);
+    await repository.quarantineCollectingSessions(A, 5_000);
+    expect(repository.pauses.get(session.id)).toEqual([
+      { startedAtMs: 5_000, endedAtMs: null },
+    ]);
+    await repository.transition(A, session.id, 'paused', 'recording', 15_000, {
+      pausedAtMs: null,
+      accumulatedPausedMs: 10_000,
+    });
+    expect(repository.pauses.get(session.id)).toEqual([
+      { startedAtMs: 5_000, endedAtMs: 15_000 },
+    ]);
+  });
   it('rejects stale/cross-owner transitions', async () => {
     const repository = new MemoryRecordingRepository();
     await create(repository, 's');

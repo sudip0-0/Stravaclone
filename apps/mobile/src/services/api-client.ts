@@ -1,9 +1,15 @@
 import {
   acceptedResponseSchema,
   authResponseSchema,
+  activityListResponseSchema,
+  activitySchema,
   userSchema,
+  type Activity,
+  type ActivityListResponse,
   type AuthResponse,
+  type CreateActivityRequest,
   type SessionTokens,
+  type UpdateActivityRequest,
   type UpdateUserRequest,
   type User,
 } from '@trail/contracts';
@@ -115,6 +121,54 @@ export class ApiClient implements RefreshTransport {
         method: 'DELETE',
         body: JSON.stringify({ confirmation: 'DELETE', password }),
       }),
+    );
+  }
+  async createActivity(payload: CreateActivityRequest): Promise<Activity> {
+    return expectResponse(
+      await this.authorized('/v1/activities', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+      activitySchema,
+    );
+  }
+  async listActivities(
+    cursor?: string,
+    limit = 50,
+  ): Promise<ActivityListResponse> {
+    const query = new URLSearchParams({ limit: String(Math.min(200, limit)) });
+    if (cursor) query.set('cursor', cursor);
+    return expectResponse(
+      await this.authorized(`/v1/activities?${query.toString()}`),
+      activityListResponseSchema,
+    );
+  }
+  async getActivity(id: string): Promise<Activity> {
+    return expectResponse(
+      await this.authorized(`/v1/activities/${encodeURIComponent(id)}`),
+      activitySchema,
+    );
+  }
+  async updateActivity(
+    id: string,
+    patch: UpdateActivityRequest,
+  ): Promise<Activity> {
+    return expectResponse(
+      await this.authorized(`/v1/activities/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify(patch),
+      }),
+      activitySchema,
+    );
+  }
+  async deleteActivity(id: string): Promise<void> {
+    await expectNoContent(
+      await this.authorized(
+        `/v1/activities/${encodeURIComponent(id)}?confirmation=DELETE`,
+        {
+          method: 'DELETE',
+        },
+      ),
     );
   }
 

@@ -14,6 +14,10 @@ import {
 export class MemoryRecordingRepository implements RecordingRepository {
   readonly sessions = new Map<string, RecordingSession>();
   readonly points = new Map<string, SequencedPoint[]>();
+  readonly pauses = new Map<
+    string,
+    { startedAtMs: number; endedAtMs: number | null }[]
+  >();
   readonly pendingOwners = new Set<string>();
   readonly cleanupMarkers = new Map<
     string,
@@ -60,17 +64,22 @@ export class MemoryRecordingRepository implements RecordingRepository {
     };
     this.sessions.set(session.id, session);
     this.points.set(session.id, []);
+    this.pauses.set(session.id, []);
     return session;
   }
   async reconcileOwner(owner: string, nowMs: number) {
     for (const value of this.sessions.values())
-      if (value.ownerUserId !== owner && value.state === 'recording')
+      if (value.ownerUserId !== owner && value.state === 'recording') {
         this.sessions.set(value.id, {
           ...value,
           state: 'paused',
-          pausedAtMs: value.pausedAtMs ?? nowMs,
+          pausedAtMs: nowMs,
           updatedAtMs: nowMs,
         });
+        this.pauses
+          .get(value.id)
+          ?.push({ startedAtMs: nowMs, endedAtMs: null });
+      }
     const active = [...this.sessions.values()].find(
       (value) =>
         value.ownerUserId === owner &&
@@ -116,13 +125,17 @@ export class MemoryRecordingRepository implements RecordingRepository {
       if (
         value.state === 'recording' &&
         (owner === null || value.ownerUserId === owner)
-      )
+      ) {
         this.sessions.set(value.id, {
           ...value,
           state: 'paused',
-          pausedAtMs: value.pausedAtMs ?? nowMs,
+          pausedAtMs: nowMs,
           updatedAtMs: nowMs,
         });
+        this.pauses
+          .get(value.id)
+          ?.push({ startedAtMs: nowMs, endedAtMs: null });
+      }
   }
   async getRecoverableSession(owner: string) {
     return (
@@ -193,6 +206,16 @@ export class MemoryRecordingRepository implements RecordingRepository {
     assertTransition(from, to);
     const current = await this.getSession(owner, id);
     if (!current || current.state !== from) throw new Error('stale transition');
+    const intervals = this.pauses.get(id) ?? [];
+    if (from === 'recording' && to === 'paused')
+      intervals.push({ startedAtMs: nowMs, endedAtMs: null });
+    if (from === 'paused' && to !== 'paused') {
+      const open = [...intervals]
+        .reverse()
+        .find((pause) => pause.endedAtMs === null);
+      if (open) open.endedAtMs = nowMs;
+    }
+    this.pauses.set(id, intervals);
     const next = { ...current, ...patch, state: to, updatedAtMs: nowMs };
     this.sessions.set(id, next);
     return next;
@@ -276,6 +299,7 @@ export class MemoryRecordingRepository implements RecordingRepository {
     if (await this.getSession(owner, id)) {
       this.sessions.delete(id);
       this.points.delete(id);
+      this.pauses.delete(id);
     }
   }
   async hasPendingSync(owner: string) {
@@ -333,6 +357,7 @@ export class MemoryRecordingRepository implements RecordingRepository {
       ) {
         this.sessions.delete(value.id);
         this.points.delete(value.id);
+        this.pauses.delete(value.id);
         changes += 1;
       }
     return changes;
@@ -343,6 +368,7 @@ export class MemoryRecordingRepository implements RecordingRepository {
       if (value.ownerUserId === owner) {
         this.sessions.delete(value.id);
         this.points.delete(value.id);
+        this.pauses.delete(value.id);
       }
     this.pendingOwners.delete(owner);
     this.cleanupMarkers.delete(owner);

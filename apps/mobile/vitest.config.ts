@@ -10,6 +10,8 @@ export default defineConfig({
         'src/services/{api-client,errors,session-coordinator}.ts',
         'src/state/{draft-guard,profile-state}.ts',
         'src/features/auth/form-focus.ts',
+        'src/features/activity-sync/sync-engine.ts',
+        'src/features/activities/activity-model.ts',
         'src/features/record/{location-adapter-policy,location-pipeline,permission-policy,recording-format,recording-service,recording-state-machine}.ts',
         'src/state/{recording-account-lifecycle,recording-draft-reporter}.ts',
       ],

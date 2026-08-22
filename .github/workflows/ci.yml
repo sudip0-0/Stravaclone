@@ -49,5 +49,8 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm --filter @trail/mobile test:coverage
+      - run: pnpm --filter @trail/mobile exec expo install --check
+      - run: pnpm dlx expo-doctor@latest apps/mobile
+      - run: pnpm --filter @trail/mobile exec expo config --type public
       - run: pnpm build
       - run: docker compose -f infra/compose.yaml config --quiet

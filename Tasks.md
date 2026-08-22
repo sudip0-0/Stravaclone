@@ -154,30 +154,30 @@ Work in phase order unless a dependency is explicitly resolved another way. A ta
 
 ### 4.1 Activity API
 
-- [ ] **P0** Implement idempotent `POST /v1/activities` using client UUID. (`ACT-1`, reliability NFR)
-- [ ] **P0** Validate point/timestamp bounds, sport, duration, route ownership, and conflicting UUID reuse.
-- [ ] **P0** Recompute/validate canonical distance, time, pace/speed, polyline, splits, and smoothed GPS elevation state. (`ACT-2`–`ACT-5`)
-- [ ] **P0** Reject more than 100,000 filtered points with a stable recoverable error; never silently truncate.
-- [ ] **P0** Implement owner-scoped paginated list/detail. (`ACT-6`, `ACT-7`)
-- [ ] **P0** Implement title/notes update and confirmed delete. (`ACT-8`, `ACT-9`)
-- [ ] **P0** Expose elevation source/fallback status; keep later OpenTopoData enrichment behind an undeployed adapter.
+- [x] **P0** Implement idempotent `POST /v1/activities` using client UUID. (`ACT-1`, reliability NFR)
+- [x] **P0** Validate point/timestamp bounds, sport, duration, route ownership, and conflicting UUID reuse.
+- [x] **P0** Recompute/validate canonical distance, time, pace/speed, polyline, splits, and smoothed GPS elevation state. (`ACT-2`–`ACT-5`)
+- [x] **P0** Reject more than 100,000 filtered points with a stable recoverable error; never silently truncate.
+- [x] **P0** Implement owner-scoped paginated list/detail. (`ACT-6`, `ACT-7`)
+- [x] **P0** Implement title/notes update and confirmed delete. (`ACT-8`, `ACT-9`)
+- [x] **P0** Expose elevation source/fallback status; keep later OpenTopoData enrichment behind an undeployed adapter.
 
 ### 4.2 Mobile sync
 
-- [ ] **P0** Commit Save locally before network access and enqueue upload. (`REC-8`)
-- [ ] **P0** Trigger sync on save, foreground, auth recovery, and connectivity restoration.
-- [ ] **P0** Add exponential backoff/jitter and user-retry state without duplicate activity creation.
-- [ ] **P0** Show Waiting to upload/Uploading/Synced/Needs attention states and pending stats banner.
-- [ ] **P0** Prove airplane-mode save uploads exactly once after reconnect.
+- [x] **P0** Commit Save locally before network access and enqueue upload. (`REC-8`)
+- [x] **P0** Trigger sync on save, foreground, auth recovery, and connectivity restoration.
+- [x] **P0** Add exponential backoff/jitter and user-retry state without duplicate activity creation.
+- [x] **P0** Persist Waiting to upload/Uploading/Synced/Needs attention states and show pending rows/banner.
+- [x] **P0 AUTOMATED** Prove airplane-mode save uploads exactly once after reconnect. **Physical-device network-transition evidence remains blocked; see `Phase4DeviceQA.md`.**
 
 ### 4.3 Activity screens
 
-- [ ] **P0** Build reverse-chronological activity list and no-activity CTA. (`ACT-6`)
-- [ ] **P0** Build detail map with fit-to-bounds, headline stats, splits, elevation chart, title/notes, and photos region. (`ACT-7`)
-- [ ] **P0** Build title/notes edit and destructive delete flows. (`ACT-8`, `ACT-9`)
-- [ ] **P0** Apply units consistently to headline stats, splits, chart labels, and list. (`PROF-2`)
+- [x] **P0** Build reverse-chronological activity list and no-activity CTA. (`ACT-6`)
+- [x] **P0** Build detail map with opt-in network loading/fit-to-bounds, headline stats, splits, accessible elevation chart region, title/notes, and photos placeholder. (`ACT-7`)
+- [x] **P0** Build title/notes edit and destructive delete flows. (`ACT-8`, `ACT-9`)
+- [x] **P0** Apply current profile units consistently to headline stats, splits, chart labels, and list. (`PROF-2`)
 - [ ] **P1** Add share image/card through OS share sheet. (`ACT-10`)
-- [ ] **P0** Performance-test 200-item list and 5-hour ride polyline on a mid-range phone.
+- [ ] **P0 BLOCKED — physical device required:** Performance-test the automated 200-item/1,000-map-point bounds with a five-hour ride on a mid-range phone; see `Phase4DeviceQA.md`.
 
 **Exit:** Offline records synchronize once, appear in list/detail, and match deterministic expected stats.
 

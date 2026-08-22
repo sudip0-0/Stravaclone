@@ -120,7 +120,7 @@ describeWithPostgres('Trail PostgreSQL schema', () => {
     }
   }, 30_000);
 
-  it('upgrades committed Phase 1 data through the single final Phase 2 migration', async () => {
+  it('upgrades committed Phase 1 data through Phase 2 and the additive Phase 4 migration', async () => {
     const upgradeDatabaseName = `trail_phase2_upgrade_${process.pid}_${Date.now()}`;
     await adminClient.unsafe(`CREATE DATABASE "${upgradeDatabaseName}"`);
     const upgradeUrl = new URL(baseDatabaseUrl!);
@@ -138,6 +138,16 @@ describeWithPostgres('Trail PostgreSQL schema', () => {
         values (${phase1Id}, 'preserved@example.com', 'Preserved')
       `;
       await executeMigrationFile(upgradeClient, '0002_phase2_auth.sql');
+      const phase2ActivityId = '550e8400-e29b-41d4-a716-446655440199';
+      await upgradeClient`
+        insert into trail.activities (id,user_id,sport,started_at,ended_at,distance_m,moving_time_s,elapsed_time_s,elevation_gain_m,elevation_loss_m,polyline)
+        values (${phase2ActivityId},${phase1Id},'run','2026-01-01T00:00:00Z','2026-01-01T00:01:00Z',100,60,60,0,0,'??')
+      `;
+      await executeMigrationFile(upgradeClient, '0003_phase4_activities.sql');
+      const migratedActivity = await upgradeClient<{ ingest_hash: string }[]>`
+        select ingest_hash from trail.activities where id=${phase2ActivityId}
+      `;
+      expect(migratedActivity[0]?.ingest_hash).toMatch(/^[0-9a-f]{64}$/);
       const preserved = await upgradeClient<
         { email: string; auth_version: number }[]
       >`
@@ -179,7 +189,7 @@ describeWithPostgres('Trail PostgreSQL schema', () => {
       from pg_constraint
       where conrelid = 'trail.activities'::regclass and contype = 'p'
     `;
-    expect(migrationRows[0]?.count).toBe(3);
+    expect(migrationRows[0]?.count).toBe(4);
     expect(activityColumns.map((row) => row.column_name)).toContain('id');
     expect(activityColumns.map((row) => row.column_name)).not.toContain(
       'client_id',

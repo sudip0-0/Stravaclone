@@ -74,11 +74,22 @@ describe('native recording configuration', () => {
       screen.indexOf('if (visibleOwner.current !== owner) return'),
     );
   });
+  it('schedules persisted sync retry deadlines without an unrelated event', () => {
+    const runtime = read(
+      'apps/mobile/src/features/activity-sync/sync-runtime.tsx',
+    );
+    expect(runtime).toContain('earliestNextAttemptAt');
+    expect(runtime).toContain('setTimeout(() => void trigger(), delay)');
+    expect(runtime).toContain("phase !== 'signed-in'");
+    expect(runtime).toContain('refreshQueued.current = true');
+    expect(runtime).toContain('while (refreshQueued.current)');
+  });
   it('includes owner-scoped durable tables and migration versioning', () => {
     const database = read('apps/mobile/src/storage/recording-database.ts');
     for (const table of [
       'recording_sessions',
       'recording_points',
+      'recording_pauses',
       'sync_jobs',
       'pending_photos',
     ])
@@ -94,5 +105,10 @@ describe('native recording configuration', () => {
     expect(database).toContain("WHERE state='confirmed'");
     expect(database).toContain('result.changes !== 1');
     expect(database).toContain('task_payload_overflow');
+    expect(database).toContain('one_open_pause_per_session');
+    expect(database).toContain(
+      'DELETE FROM recording_sessions WHERE id=? AND owner_user_id=?',
+    );
+    expect(database).toContain("state='uploading'");
   });
 });

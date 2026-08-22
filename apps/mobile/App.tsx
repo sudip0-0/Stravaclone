@@ -7,6 +7,7 @@ import { RecordingAccountLifecycleService } from './src/state/recording-account-
 import { SecureConfirmedCleanupFallbackStore } from './src/storage/confirmed-cleanup-fallback';
 import { recordingRepository } from './src/storage/recording-database';
 import { stopNativeCollection } from './src/services/recording-location';
+import { ActivitySyncRuntime } from './src/features/activity-sync/sync-runtime';
 
 const draftReporter = new RecordingDraftStateReporter(recordingRepository);
 const recordingLifecycle = new RecordingAccountLifecycleService(
@@ -23,8 +24,10 @@ export default function App() {
         draftReporter={draftReporter}
         recordingLifecycle={recordingLifecycle}
       >
-        <StatusBar style="auto" />
-        <RootNavigation />
+        <ActivitySyncRuntime>
+          <StatusBar style="auto" />
+          <RootNavigation />
+        </ActivitySyncRuntime>
       </AppStateProvider>
     </SafeAreaProvider>
   );
