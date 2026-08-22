@@ -19,6 +19,7 @@ import { useAppState } from '../../state/app-state';
 import { recordingRepository } from '../../storage/recording-database';
 import { spacing, useTheme } from '../../theme/tokens';
 import { useActivitySync } from '../activity-sync/sync-runtime';
+import { PhotoGallery } from '../photos/photo-gallery';
 import { ActivityMap } from './activity-map';
 import {
   activityTitle,
@@ -362,7 +363,7 @@ function ActivityDetailScreen({
       >
         Photos
       </Text>
-      <Body>Photos can be added in a later phase.</Body>
+      <PhotoGallery activityId={activity.id} />
       {mutationError ? <StatusBanner message={mutationError} /> : null}
       {editing ? (
         <>

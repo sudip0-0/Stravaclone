@@ -3,6 +3,10 @@ packages:
   - packages/*
 
 minimumReleaseAge: 10080
+minimumReleaseAgeExclude:
+  - sharp
+  - expo-image-picker
+  - expo-file-system
 injectWorkspacePackages: true
 
 # Explicitly reviewed build scripts only: esbuild installs its platform binary;

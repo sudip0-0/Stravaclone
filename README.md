@@ -1,6 +1,6 @@
 # Trail
 
-Trail is an independent iOS/Android outdoor activity application under development. Phase 0 provides the workspace, a placeholder four-tab mobile shell, and a production-shaped API foundation; it does **not** implement recording or other product features.
+Trail is an independent iOS/Android outdoor activity application under development. The repository implements the Phase 5 baseline: authenticated accounts, durable offline activity recording/sync, private activity review, and independently retried private photo uploads. Physical-device and Cloudflare R2 release gates remain open.
 
 ## Prerequisites
 
@@ -82,6 +82,18 @@ Focused API tests:
 pnpm test:api
 ```
 
+The full local Postgres, MinIO, and Mailpit integration suite uses explicit test-only switches:
+
+```powershell
+$env:TEST_DATABASE_URL='postgres://trail:trail_local_only@127.0.0.1:5433/trail'
+$env:TEST_MINIO='true'
+$env:TEST_MAILPIT='true'
+$env:TEST_HEIC='true' # downloads a commit-pinned upstream HEIC fixture
+pnpm test:api
+```
+
+Phase 5 physical-device and Cloudflare R2 gates are tracked in `Phase5DeviceQA.md`. HEIC is additionally blocked from release pending the LGPL/relinking and HEVC legal review in `THIRD_PARTY_NOTICES.md`; JPEG/WebP remain the shippable photo formats.
+
 ## Database migrations
 
 Drizzle source is in `apps/api/src/db`. API startup never migrates automatically.
@@ -91,7 +103,7 @@ pnpm --filter @trail/api db:generate
 pnpm --filter @trail/api db:migrate
 ```
 
-Phase 0's migration creates only a namespace. Feature tables belong to Phase 1. For an immutable release runner, build and run the dedicated migration target:
+Migrations `0000` through `0003` are the committed foundation/Phase 1/Phase 2/Phase 4 baseline. Phase 5 is a single forward migration that preserves legacy private object-key cleanup reachability while requiring re-upload before legacy photos can become ready. For an immutable release runner, build and run the dedicated migration target:
 
 ```sh
 docker build --target migration -t trail-api-migration:local .
@@ -114,6 +126,6 @@ See `infra/README.md` for Koyeb constraints. The selected free beta providers re
 
 `EMAIL_MODE=disabled`/`EMAIL_PROVIDER=none` creates no SMTP transport. Local development explicitly selects `smtp`/`mailpit`, which allows unauthenticated plaintext SMTP only outside production. Production SMTP requires a nonlocal provider, username/password, and `SMTP_REQUIRE_TLS=true`; port 465 may also set `SMTP_SECURE=true`. Production configuration also requires a nonlocal TLS Postgres URL (`sslmode=require`), nonlocal TLS object storage, non-placeholder credentials, HTTPS maps, and nonlocal HTTPS OTLP when enabled. Validation errors name fields only and never echo values.
 
-`pnpm audit:security` fails on moderate-or-higher advisories except two explicitly named `image-size` advisories inherited by Expo Metro. There is no patched `image-size` release. Metro uses it only during developer-controlled native bundling; it is absent from the API image and generated mobile runtime bundle, the repository has no web or remote bundler output, and untrusted user images are not processed by this Phase 0 application. Revisit the exceptions immediately when Expo/Metro publishes a fix.
+`pnpm audit:security` first audits production dependencies and then the full workspace at moderate severity. Two explicitly named `image-size` advisories inherited by Expo Metro remain temporary exceptions because no patched Expo-compatible release exists; Metro uses that package during developer-controlled native bundling, not the API's Sharp/libheif media-processing path or generated mobile runtime bundle. Untrusted photo bytes are processed only by the bounded API photo workers. Revisit the exceptions immediately when Expo/Metro publishes a fix.
 
 GitHub Actions are pinned to reviewed commit SHAs, and container images use exact release tags. Container digest pinning remains a low-risk maintenance exception so multi-architecture Node/Postgres/MinIO/Mailpit updates remain practical; Dependabot covers root Docker, Compose images, npm, and Actions. Only reviewed `esbuild` and `protobufjs` package-local install scripts are allowed by pnpm.

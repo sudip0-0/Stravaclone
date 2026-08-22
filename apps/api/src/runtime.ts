@@ -1,6 +1,10 @@
 import { buildApp } from './app.js';
 import { drainEmailOutbox } from './auth/service.js';
 import type { ApiConfig } from './config.js';
+import {
+  drainObjectDeletionOutbox,
+  drainPhotoProcessing,
+} from './photos/workers.js';
 import { createLocalProviders } from './providers/local.js';
 import type { TelemetryLifecycle } from './telemetry/bootstrap.js';
 
@@ -12,6 +16,7 @@ export async function startRuntime(
   const app = buildApp({ config, providers });
   let stopping = false;
   let drainingEmail = false;
+  let drainingObjects = false;
   const emailOutboxTimer = setInterval(() => {
     if (drainingEmail || stopping) return;
     drainingEmail = true;
@@ -26,11 +31,29 @@ export async function startRuntime(
         drainingEmail = false;
       });
   }, 30_000).unref();
+  const objectWorkerTimer = setInterval(() => {
+    if (drainingObjects || stopping) return;
+    drainingObjects = true;
+    void Promise.all([
+      drainPhotoProcessing(providers),
+      drainObjectDeletionOutbox(providers),
+    ])
+      .catch(() => {
+        providers.telemetry.captureException({
+          code: 'object_worker_failed',
+          requestId: 'object-worker',
+        });
+      })
+      .finally(() => {
+        drainingObjects = false;
+      });
+  }, 5_000).unref();
 
   const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
     if (stopping) return;
     stopping = true;
     clearInterval(emailOutboxTimer);
+    clearInterval(objectWorkerTimer);
     app.log.info({ signal }, 'Graceful shutdown started');
     const forceExit = setTimeout(() => process.exit(1), 10_000).unref();
     try {

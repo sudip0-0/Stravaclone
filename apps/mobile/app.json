@@ -9,6 +9,14 @@
       "expo-secure-store",
       "expo-status-bar",
       "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Trail accesses photos only when you choose private activity photos. Photo location metadata is not read.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
       ["expo-sqlite", { "useSQLCipher": true }],
       [
         "expo-location",

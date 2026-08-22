@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import type {
   Activity,
@@ -90,7 +91,19 @@ suite('Phase 4 activity API', () => {
     const providers: Providers = {
       database: { sql, checkHealth },
       identity: { apple: disabled, google: disabled },
-      objectStorage: { bucket: 'test', checkHealth },
+      objectStorage: {
+        bucket: 'test',
+        checkHealth,
+        presignPost: async () => ({
+          url: 'https://example.test/upload',
+          fields: {},
+        }),
+        presignGet: async () => 'https://example.test/download',
+        head: async () => null,
+        get: async () => Readable.from([]),
+        put: async () => undefined,
+        delete: async () => undefined,
+      },
       email: { enabled: false, checkHealth, send: async () => undefined },
       mapStyle: { styleUrl: 'https://example.test' },
       elevation: {
@@ -313,8 +326,9 @@ suite('Phase 4 activity API', () => {
     });
     expect(update.json<Activity>().title).toBe('Renamed');
     const photoId = randomUUID();
-    const objectKey = `users/${owner}/activities/${first.id}/photos/${photoId}`;
-    await sql`insert into trail.activity_photos (id,activity_id,user_id,object_key,sort_order) values (${photoId},${first.id},${owner},${objectKey},0)`;
+    const stagingObjectKey = `users/${owner}/activities/${first.id}/photos/${photoId}/staging`;
+    const normalizedObjectKey = `users/${owner}/activities/${first.id}/photos/${photoId}/normalized`;
+    await sql`insert into trail.activity_photos (id,activity_id,user_id,staging_object_key,normalized_object_key,sort_order) values (${photoId},${first.id},${owner},${stagingObjectKey},${normalizedObjectKey},0)`;
     expect(
       (
         await app.inject({
@@ -335,8 +349,10 @@ suite('Phase 4 activity API', () => {
     ).toBe(204);
     const outbox = await sql<
       { object_key: string }[]
-    >`select object_key from trail.object_deletion_outbox where source_photo_id=${photoId}`;
-    expect(outbox[0]?.object_key).toBe(objectKey);
+    >`select object_key from trail.object_deletion_outbox where source_photo_id=${photoId} order by object_key`;
+    expect(outbox.map((row) => row.object_key)).toEqual(
+      [stagingObjectKey, normalizedObjectKey].sort(),
+    );
   });
   it('limits owner canonicalization to two concurrent creates', async () => {
     const requests = Array.from({ length: 3 }, () => {

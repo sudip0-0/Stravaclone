@@ -1,3 +1,4 @@
+import { Readable } from 'node:stream';
 import type { DependencyStatus, Providers } from './ports.js';
 
 export function createTestProviders(
@@ -19,7 +20,19 @@ export function createTestProviders(
   return {
     database: { checkHealth },
     identity: { apple: unavailableIdentity, google: unavailableIdentity },
-    objectStorage: { bucket: 'test-private', checkHealth },
+    objectStorage: {
+      bucket: 'test-private',
+      checkHealth,
+      presignPost: async () => ({
+        url: 'https://example.test/upload',
+        fields: {},
+      }),
+      presignGet: async () => 'https://example.test/download',
+      head: async () => null,
+      get: async () => Readable.from([]),
+      put: async () => undefined,
+      delete: async () => undefined,
+    },
     email: {
       enabled: options.emailEnabled ?? false,
       checkHealth,

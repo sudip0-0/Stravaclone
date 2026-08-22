@@ -3,7 +3,7 @@ import { parseConfig } from '../src/config.js';
 import { validEnvironment } from './fixtures.js';
 
 const mocks = vi.hoisted(() => ({
-  bucketExists: vi.fn(),
+  statObject: vi.fn(),
   createTransport: vi.fn(),
   sendMail: vi.fn(),
   verify: vi.fn(),
@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('minio', () => ({
   Client: class {
-    bucketExists = mocks.bucketExists;
+    statObject = mocks.statObject;
   },
 }));
 vi.mock('nodemailer', () => ({
@@ -35,10 +35,11 @@ describe('local providers', () => {
       verify: mocks.verify,
     });
     mocks.verify.mockResolvedValue(true);
+    mocks.statObject.mockRejectedValue({ code: 'NoSuchKey' });
   });
 
-  it('reports a missing object-storage bucket as down', async () => {
-    mocks.bucketExists.mockResolvedValue(false);
+  it('reports inaccessible object storage as down', async () => {
+    mocks.statObject.mockRejectedValue({ code: 'AccessDenied' });
     const providers = createLocalProviders(parseConfig(validEnvironment));
 
     await expect(providers.objectStorage.checkHealth()).resolves.toBe('down');
@@ -46,7 +47,6 @@ describe('local providers', () => {
   });
 
   it('uses the provider-neutral elevation boundary without adapter payloads', async () => {
-    mocks.bucketExists.mockResolvedValue(true);
     const providers = createLocalProviders(parseConfig(validEnvironment));
 
     await expect(
@@ -61,7 +61,6 @@ describe('local providers', () => {
   });
 
   it('uses unauthenticated non-TLS SMTP only for explicit Mailpit mode', async () => {
-    mocks.bucketExists.mockResolvedValue(true);
     const providers = createLocalProviders(
       parseConfig({
         ...validEnvironment,

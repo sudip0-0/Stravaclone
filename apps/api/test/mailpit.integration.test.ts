@@ -22,6 +22,7 @@ describeWithMailpit('Mailpit email adapter', () => {
         SMTP_HOST: '127.0.0.1',
         SMTP_PORT: '1025',
         SMTP_FROM: 'test@trail.local',
+        READINESS_TIMEOUT_MS: '1000',
       }),
     );
     try {

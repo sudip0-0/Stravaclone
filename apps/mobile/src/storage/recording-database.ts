@@ -6,6 +6,13 @@ import type {
   SyncJob,
   SyncRepository,
 } from '../features/activity-sync/sync-engine';
+import { purgeManagedOwnerPhotos } from '../features/photos/photo-file-store';
+import type {
+  NewPendingPhoto,
+  PendingPhoto,
+  PendingPhotoRepository,
+  PendingPhotoStatus,
+} from '../features/photos/photo-types';
 import { assertTransition } from '../features/record/recording-state-machine';
 import {
   ABANDONED_DRAFT_RETENTION_MS,
@@ -48,6 +55,21 @@ interface SyncJobRow {
   entity_id: string;
   owner_user_id: string;
   attempt_count: number;
+}
+interface PendingPhotoRow {
+  id: string;
+  owner_user_id: string;
+  activity_id: string;
+  server_photo_id: string | null;
+  local_uri: string;
+  status: PendingPhotoStatus;
+  input_mime: PendingPhoto['inputMime'];
+  input_size_bytes: number;
+  progress: number;
+  attempt_count: number;
+  next_attempt_at_ms: number;
+  last_safe_error_code: string | null;
+  lease_expires_at_ms: number | null;
 }
 interface PauseRow {
   started_at_ms: number;
@@ -146,6 +168,37 @@ INSERT OR IGNORE INTO recording_pauses (session_id,sequence,started_at_ms,ended_
 CREATE UNIQUE INDEX IF NOT EXISTS one_open_pause_per_session ON recording_pauses(session_id) WHERE ended_at_ms IS NULL;
 PRAGMA user_version = 6;`;
 
+const MIGRATION_7 = `
+ALTER TABLE pending_photos RENAME TO pending_photos_legacy;
+CREATE TABLE pending_photos (
+ id TEXT PRIMARY KEY NOT NULL, owner_user_id TEXT NOT NULL, activity_id TEXT NOT NULL,
+ server_photo_id TEXT, local_uri TEXT NOT NULL,
+ status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','uploading','completing','processing','needs_attention')),
+ input_mime TEXT NOT NULL CHECK (input_mime IN ('image/jpeg','image/heic','image/webp')),
+ input_size_bytes INTEGER NOT NULL CHECK (input_size_bytes BETWEEN 1 AND 10485760),
+ progress INTEGER NOT NULL DEFAULT 0 CHECK (progress BETWEEN 0 AND 100),
+ attempt_count INTEGER NOT NULL DEFAULT 0, next_attempt_at_ms INTEGER NOT NULL,
+ last_safe_error_code TEXT, created_at_ms INTEGER NOT NULL, updated_at_ms INTEGER NOT NULL
+);
+INSERT INTO pending_photos (id,owner_user_id,activity_id,local_uri,status,input_mime,input_size_bytes,progress,attempt_count,next_attempt_at_ms,last_safe_error_code,created_at_ms,updated_at_ms)
+ SELECT id,owner_user_id,activity_id,local_uri,
+  CASE WHEN state='uploaded' THEN 'processing' WHEN state='uploading' THEN 'pending' ELSE state END,
+  CASE WHEN media_type IN ('image/jpeg','image/heic','image/webp') THEN media_type ELSE 'image/jpeg' END,
+  CASE WHEN byte_size BETWEEN 1 AND 10485760 THEN byte_size ELSE 1 END,
+  CASE WHEN state='uploaded' THEN 100 ELSE 0 END,attempt_count,next_attempt_at_ms,last_safe_error_code,created_at_ms,updated_at_ms
+ FROM pending_photos_legacy;
+DROP TABLE pending_photos_legacy;
+CREATE INDEX pending_photos_due ON pending_photos(owner_user_id,status,next_attempt_at_ms);
+CREATE INDEX pending_photos_activity ON pending_photos(owner_user_id,activity_id,created_at_ms);
+CREATE UNIQUE INDEX pending_photos_server_id ON pending_photos(server_photo_id) WHERE server_photo_id IS NOT NULL;
+PRAGMA user_version = 7;`;
+
+const MIGRATION_8 = `
+ALTER TABLE pending_photos ADD COLUMN lease_expires_at_ms INTEGER;
+UPDATE pending_photos SET status=CASE WHEN server_photo_id IS NULL THEN 'pending' ELSE 'completing' END,lease_expires_at_ms=NULL
+ WHERE status IN ('uploading','completing');
+PRAGMA user_version = 8;`;
+
 function mapSession(row: SessionRow): RecordingSession {
   return {
     id: row.id,
@@ -178,6 +231,23 @@ function mapPoint(row: PointRow): SequencedPoint {
     timestampMs: row.recorded_at_ms,
   };
 }
+function mapPendingPhoto(row: PendingPhotoRow): PendingPhoto {
+  return {
+    id: row.id,
+    ownerUserId: row.owner_user_id,
+    activityId: row.activity_id,
+    serverPhotoId: row.server_photo_id,
+    localUri: row.local_uri,
+    status: row.status,
+    inputMime: row.input_mime,
+    inputSizeBytes: row.input_size_bytes,
+    progress: row.progress,
+    attemptCount: row.attempt_count,
+    nextAttemptAtMs: row.next_attempt_at_ms,
+    lastSafeErrorCode: row.last_safe_error_code,
+    leaseExpiresAtMs: row.lease_expires_at_ms,
+  };
+}
 
 export class PointLimitReachedError extends Error {
   constructor() {
@@ -186,7 +256,7 @@ export class PointLimitReachedError extends Error {
 }
 
 export class SQLiteRecordingRepository
-  implements RecordingRepository, SyncRepository
+  implements RecordingRepository, SyncRepository, PendingPhotoRepository
 {
   private databasePromise: Promise<SQLite.SQLiteDatabase> | null = null;
   private migrationPromise: Promise<void> | null = null;
@@ -243,7 +313,15 @@ export class SQLiteRecordingRepository
           await this.runMigration(db, MIGRATION_5);
           version = 5;
         }
-        if (version < 6) await this.runMigration(db, MIGRATION_6);
+        if (version < 6) {
+          await this.runMigration(db, MIGRATION_6);
+          version = 6;
+        }
+        if (version < 7) {
+          await this.runMigration(db, MIGRATION_7);
+          version = 7;
+        }
+        if (version < 8) await this.runMigration(db, MIGRATION_8);
         await db.execAsync(
           'PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA cipher_memory_security = ON; PRAGMA secure_delete = ON;',
         );
@@ -895,6 +973,179 @@ export class SQLiteRecordingRepository
     );
     return result.changes;
   }
+  async addPendingPhoto(input: NewPendingPhoto): Promise<void> {
+    await this.migrate();
+    const result = await (
+      await this.database()
+    ).runAsync(
+      `INSERT INTO pending_photos (id,owner_user_id,activity_id,local_uri,status,input_mime,input_size_bytes,progress,next_attempt_at_ms,created_at_ms,updated_at_ms)
+       SELECT ?,?,?,?,'pending',?,?,0,?,?,? WHERE (SELECT count(*) FROM pending_photos WHERE owner_user_id=? AND activity_id=?) < 10`,
+      input.id,
+      input.ownerUserId,
+      input.activityId,
+      input.localUri,
+      input.inputMime,
+      input.inputSizeBytes,
+      input.nowMs,
+      input.nowMs,
+      input.nowMs,
+      input.ownerUserId,
+      input.activityId,
+    );
+    if (result.changes !== 1) throw new Error('Photo limit reached.');
+  }
+  async listPendingPhotos(ownerUserId: string, activityId: string) {
+    await this.migrate();
+    const rows = await (
+      await this.database()
+    ).getAllAsync<PendingPhotoRow>(
+      `SELECT * FROM pending_photos WHERE owner_user_id=? AND activity_id=? ORDER BY created_at_ms,id`,
+      ownerUserId,
+      activityId,
+    );
+    return rows.map(mapPendingPhoto);
+  }
+  async listDuePendingPhotos(ownerUserId: string, nowMs: number) {
+    await this.migrate();
+    const rows = await (
+      await this.database()
+    ).getAllAsync<PendingPhotoRow>(
+      `SELECT * FROM pending_photos WHERE owner_user_id=? AND status IN ('pending','uploading','completing') AND next_attempt_at_ms<=? AND (lease_expires_at_ms IS NULL OR lease_expires_at_ms<=?) ORDER BY next_attempt_at_ms,id LIMIT 3`,
+      ownerUserId,
+      nowMs,
+      nowMs,
+    );
+    return rows.map(mapPendingPhoto);
+  }
+  async listProcessingPendingPhotos(ownerUserId: string) {
+    await this.migrate();
+    const rows = await (
+      await this.database()
+    ).getAllAsync<PendingPhotoRow>(
+      `SELECT * FROM pending_photos WHERE owner_user_id=? AND status='processing' ORDER BY updated_at_ms,id LIMIT 10`,
+      ownerUserId,
+    );
+    return rows.map(mapPendingPhoto);
+  }
+  async setPendingPhotoUpload(
+    ownerUserId: string,
+    id: string,
+    serverPhotoId: string,
+    progress: number,
+    nowMs: number,
+  ) {
+    await (
+      await this.database()
+    ).runAsync(
+      `UPDATE pending_photos SET server_photo_id=?,status='uploading',progress=?,lease_expires_at_ms=?,updated_at_ms=? WHERE id=? AND owner_user_id=?`,
+      serverPhotoId,
+      progress,
+      nowMs + 120_000,
+      nowMs,
+      id,
+      ownerUserId,
+    );
+  }
+  async setPendingPhotoStatus(
+    ownerUserId: string,
+    id: string,
+    status: PendingPhotoStatus,
+    progress: number,
+    nowMs: number,
+  ) {
+    await (
+      await this.database()
+    ).runAsync(
+      `UPDATE pending_photos SET status=?,progress=?,last_safe_error_code=null,lease_expires_at_ms=CASE WHEN ? IN ('uploading','completing') THEN ? ELSE NULL END,updated_at_ms=? WHERE id=? AND owner_user_id=?`,
+      status,
+      progress,
+      status,
+      nowMs + 120_000,
+      nowMs,
+      id,
+      ownerUserId,
+    );
+  }
+  async failPendingPhoto(
+    ownerUserId: string,
+    id: string,
+    safeCode: string,
+    nextAttemptAtMs: number,
+    clearServerPhotoId: boolean,
+    nowMs: number,
+  ) {
+    await (
+      await this.database()
+    ).runAsync(
+      `UPDATE pending_photos SET status=CASE WHEN attempt_count+1>=5 THEN 'needs_attention' WHEN ?=1 THEN 'pending' ELSE 'completing' END,server_photo_id=CASE WHEN ?=1 THEN NULL ELSE server_photo_id END,attempt_count=MIN(5,attempt_count+1),next_attempt_at_ms=?,last_safe_error_code=?,lease_expires_at_ms=NULL,updated_at_ms=? WHERE id=? AND owner_user_id=?`,
+      clearServerPhotoId ? 1 : 0,
+      clearServerPhotoId ? 1 : 0,
+      nextAttemptAtMs,
+      safeCode,
+      nowMs,
+      id,
+      ownerUserId,
+    );
+  }
+  async retryPendingPhoto(ownerUserId: string, id: string, nowMs: number) {
+    await (
+      await this.database()
+    ).runAsync(
+      `UPDATE pending_photos SET status=CASE WHEN server_photo_id IS NULL THEN 'pending' ELSE 'completing' END,attempt_count=0,next_attempt_at_ms=?,last_safe_error_code=null,lease_expires_at_ms=NULL,updated_at_ms=? WHERE id=? AND owner_user_id=?`,
+      nowMs,
+      nowMs,
+      id,
+      ownerUserId,
+    );
+  }
+  async abandonPendingPhotoReservation(
+    ownerUserId: string,
+    id: string,
+    nowMs: number,
+  ) {
+    await (
+      await this.database()
+    ).runAsync(
+      `UPDATE pending_photos SET server_photo_id=NULL,status='pending',progress=0,next_attempt_at_ms=?,last_safe_error_code='staging_missing',lease_expires_at_ms=NULL,updated_at_ms=? WHERE id=? AND owner_user_id=?`,
+      nowMs,
+      nowMs,
+      id,
+      ownerUserId,
+    );
+  }
+  async removePendingPhoto(ownerUserId: string, id: string) {
+    await (
+      await this.database()
+    ).runAsync(
+      'DELETE FROM pending_photos WHERE id=? AND owner_user_id=?',
+      id,
+      ownerUserId,
+    );
+  }
+  async removePendingPhotoByServerId(
+    ownerUserId: string,
+    serverPhotoId: string,
+  ) {
+    await (
+      await this.database()
+    ).runAsync(
+      'DELETE FROM pending_photos WHERE server_photo_id=? AND owner_user_id=?',
+      serverPhotoId,
+      ownerUserId,
+    );
+  }
+  async recoverPendingPhotoLeases(ownerUserId: string, nowMs: number) {
+    await this.migrate();
+    await (
+      await this.database()
+    ).runAsync(
+      `UPDATE pending_photos SET status=CASE WHEN server_photo_id IS NULL THEN 'pending' ELSE 'completing' END,lease_expires_at_ms=NULL,next_attempt_at_ms=MIN(next_attempt_at_ms,?),updated_at_ms=? WHERE owner_user_id=? AND status IN ('uploading','completing') AND (lease_expires_at_ms IS NULL OR lease_expires_at_ms<=?)`,
+      nowMs,
+      nowMs,
+      ownerUserId,
+      nowMs,
+    );
+  }
   async purgeOwner(ownerUserId: string) {
     const db = await this.database();
     await db.withExclusiveTransactionAsync(async (tx) => {
@@ -911,6 +1162,7 @@ export class SQLiteRecordingRepository
         ownerUserId,
       );
     });
+    purgeManagedOwnerPhotos(ownerUserId);
     try {
       await db.execAsync('PRAGMA wal_checkpoint(TRUNCATE); VACUUM;');
     } catch {

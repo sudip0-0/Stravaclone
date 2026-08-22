@@ -602,10 +602,22 @@ export const activityPhotos = trailSchema.table(
     id: uuid('id').defaultRandom().primaryKey(),
     activityId: uuid('activity_id').notNull(),
     userId: uuid('user_id').notNull(),
-    objectKey: text('object_key').notNull(),
+    legacyObjectKey: text('legacy_object_key'),
+    stagingObjectKey: text('staging_object_key'),
+    normalizedObjectKey: text('normalized_object_key'),
     status: text('status').notNull().default('pending'),
-    contentType: text('content_type'),
-    byteSize: integer('byte_size'),
+    mime: text('mime'),
+    sizeBytes: integer('size_bytes'),
+    inputMime: text('input_mime'),
+    inputSizeBytes: integer('input_size_bytes'),
+    errorCode: text('error_code'),
+    uploadAttemptCount: integer('upload_attempt_count').notNull().default(0),
+    processingAttemptCount: integer('processing_attempt_count')
+      .notNull()
+      .default(0),
+    nextProcessingAt: utcTimestamp('next_processing_at').defaultNow().notNull(),
+    processingLeaseToken: uuid('processing_lease_token'),
+    processingLeaseExpiresAt: utcTimestamp('processing_lease_expires_at'),
     width: integer('width'),
     height: integer('height'),
     latitude: doublePrecision('latitude'),
@@ -616,7 +628,15 @@ export const activityPhotos = trailSchema.table(
     updatedAt: utcTimestamp('updated_at').defaultNow().notNull(),
   },
   (table) => [
-    unique('activity_photos_object_key_unique').on(table.objectKey),
+    unique('activity_photos_legacy_object_key_unique').on(
+      table.legacyObjectKey,
+    ),
+    unique('activity_photos_staging_object_key_unique').on(
+      table.stagingObjectKey,
+    ),
+    unique('activity_photos_normalized_object_key_unique').on(
+      table.normalizedObjectKey,
+    ),
     unique('activity_photos_activity_sort_unique').on(
       table.activityId,
       table.sortOrder,
@@ -629,20 +649,59 @@ export const activityPhotos = trailSchema.table(
       foreignColumns: [activities.id, activities.userId],
     }).onDelete('cascade'),
     check(
-      'activity_photos_object_key_owner_check',
-      sql`length(${table.objectKey}) <= 1024 and ${table.objectKey} = 'users/' || ${table.userId}::text || '/activities/' || ${table.activityId}::text || '/photos/' || ${table.id}::text`,
+      'activity_photos_legacy_key_owner_check',
+      sql`${table.legacyObjectKey} is null or (length(${table.legacyObjectKey}) <= 1024 and ${table.legacyObjectKey} = 'users/' || ${table.userId}::text || '/activities/' || ${table.activityId}::text || '/photos/' || ${table.id}::text)`,
     ),
+    check(
+      'activity_photos_staging_key_owner_check',
+      sql`${table.stagingObjectKey} is null or (length(${table.stagingObjectKey}) <= 1024 and ${table.stagingObjectKey} = 'users/' || ${table.userId}::text || '/activities/' || ${table.activityId}::text || '/photos/' || ${table.id}::text || '/staging')`,
+    ),
+    check(
+      'activity_photos_normalized_key_owner_check',
+      sql`${table.normalizedObjectKey} is null or (length(${table.normalizedObjectKey}) <= 1024 and ${table.normalizedObjectKey} = 'users/' || ${table.userId}::text || '/activities/' || ${table.activityId}::text || '/photos/' || ${table.id}::text || '/normalized')`,
+    ),
+    check(
+      'activity_photos_object_key_shape_check',
+      sql`(${table.legacyObjectKey} is not null and ${table.stagingObjectKey} is null and ${table.normalizedObjectKey} is null and ${table.status} = 'failed') or (${table.legacyObjectKey} is null and ${table.stagingObjectKey} is not null and ${table.normalizedObjectKey} is not null)`,
+    ),
+    index('activity_photos_processing_idx')
+      .on(table.nextProcessingAt)
+      .where(sql`${table.status} = 'processing'`),
     check(
       'activity_photos_status_check',
-      sql`${table.status} in ('pending', 'uploading', 'ready', 'failed')`,
+      sql`${table.status} in ('pending', 'processing', 'ready', 'failed')`,
     ),
     check(
-      'activity_photos_content_type_check',
-      sql`${table.contentType} is null or ${table.contentType} in ('image/jpeg', 'image/heic', 'image/webp')`,
+      'activity_photos_mime_check',
+      sql`${table.mime} is null or ${table.mime} in ('image/jpeg', 'image/webp')`,
     ),
     check(
-      'activity_photos_byte_size_check',
-      sql`${table.byteSize} is null or (${table.byteSize} > 0 and ${table.byteSize} <= 10485760)`,
+      'activity_photos_size_bytes_check',
+      sql`${table.sizeBytes} is null or (${table.sizeBytes} > 0 and ${table.sizeBytes} <= 8388608)`,
+    ),
+    check(
+      'activity_photos_input_mime_check',
+      sql`${table.inputMime} is null or ${table.inputMime} in ('image/jpeg', 'image/heic', 'image/webp')`,
+    ),
+    check(
+      'activity_photos_input_size_check',
+      sql`${table.inputSizeBytes} is null or (${table.inputSizeBytes} > 0 and ${table.inputSizeBytes} <= 10485760)`,
+    ),
+    check(
+      'activity_photos_error_code_check',
+      sql`${table.errorCode} is null or (length(${table.errorCode}) between 1 and 64 and ${table.errorCode} ~ '^[a-z0-9_]+$')`,
+    ),
+    check(
+      'activity_photos_upload_attempt_count_check',
+      sql`${table.uploadAttemptCount} between 0 and 5`,
+    ),
+    check(
+      'activity_photos_attempt_count_check',
+      sql`${table.processingAttemptCount} between 0 and 5`,
+    ),
+    check(
+      'activity_photos_processing_lease_check',
+      sql`(${table.processingLeaseToken} is null) = (${table.processingLeaseExpiresAt} is null) and (${table.processingLeaseToken} is null or ${table.status} = 'processing')`,
     ),
     check(
       'activity_photos_dimensions_check',
@@ -674,6 +733,8 @@ export const objectDeletionOutbox = trailSchema.table(
     status: text('status').notNull().default('pending'),
     attemptCount: integer('attempt_count').notNull().default(0),
     nextAttemptAt: utcTimestamp('next_attempt_at').defaultNow().notNull(),
+    leaseToken: uuid('lease_token'),
+    leaseExpiresAt: utcTimestamp('lease_expires_at'),
     completedAt: utcTimestamp('completed_at'),
     lastErrorCode: text('last_error_code'),
     createdAt: utcTimestamp('created_at').defaultNow().notNull(),
@@ -681,24 +742,21 @@ export const objectDeletionOutbox = trailSchema.table(
   },
   (table) => [
     unique('object_deletion_outbox_object_key_unique').on(table.objectKey),
-    unique('object_deletion_outbox_source_photo_unique').on(
-      table.sourcePhotoId,
-    ),
     index('object_deletion_outbox_pending_idx')
       .on(table.nextAttemptAt)
       .where(sql`${table.status} in ('pending', 'retry')`),
     index('object_deletion_outbox_owner_user_id_idx').on(table.ownerUserId),
     check(
       'object_deletion_outbox_object_key_owner_check',
-      sql`length(${table.objectKey}) <= 1024 and ${table.objectKey} = 'users/' || ${table.ownerUserId}::text || '/activities/' || ${table.sourceActivityId}::text || '/photos/' || ${table.sourcePhotoId}::text`,
+      sql`length(${table.objectKey}) <= 1024 and ${table.objectKey} in ('users/' || ${table.ownerUserId}::text || '/activities/' || ${table.sourceActivityId}::text || '/photos/' || ${table.sourcePhotoId}::text, 'users/' || ${table.ownerUserId}::text || '/activities/' || ${table.sourceActivityId}::text || '/photos/' || ${table.sourcePhotoId}::text || '/staging', 'users/' || ${table.ownerUserId}::text || '/activities/' || ${table.sourceActivityId}::text || '/photos/' || ${table.sourcePhotoId}::text || '/normalized')`,
     ),
     check(
       'object_deletion_outbox_status_check',
-      sql`${table.status} in ('pending', 'retry', 'completed')`,
+      sql`${table.status} in ('pending', 'retry', 'completed', 'failed')`,
     ),
     check(
       'object_deletion_outbox_attempt_count_check',
-      sql`${table.attemptCount} between 0 and 2147483647`,
+      sql`${table.attemptCount} between 0 and 10`,
     ),
     check(
       'object_deletion_outbox_error_code_check',
@@ -707,6 +765,10 @@ export const objectDeletionOutbox = trailSchema.table(
     check(
       'object_deletion_outbox_completion_check',
       sql`(${table.status} = 'completed') = (${table.completedAt} is not null)`,
+    ),
+    check(
+      'object_deletion_outbox_lease_check',
+      sql`(${table.leaseToken} is null) = (${table.leaseExpiresAt} is null) and (${table.leaseToken} is null or ${table.status} in ('pending', 'retry'))`,
     ),
     check(
       'object_deletion_outbox_updated_at_check',

@@ -16,6 +16,7 @@ export const errorCodeSchema = z.enum([
   'save_threshold_not_met',
   'too_many_photos',
   'photo_too_large',
+  'staging_missing',
   'unsupported_media_type',
   'rate_limited',
   'provider_unavailable',

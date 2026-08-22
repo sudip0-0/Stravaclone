@@ -171,6 +171,36 @@ describe('ApiClient auth and handoff payloads', () => {
     expect(coordinator.current).toEqual(tokens);
   });
 
+  it('uploads managed photo bytes with signed POST form fields', async () => {
+    let uploadInit: RequestInit | undefined;
+    const fetcher: typeof fetch = async (input, init) => {
+      if (urlFrom(input) === 'file:///managed/photo.jpg')
+        return new Response(new Blob(['photo-bytes'], { type: 'image/jpeg' }), {
+          status: 200,
+        });
+      uploadInit = init;
+      return new Response(null, { status: 204 });
+    };
+    const api = new ApiClient('https://api.example.test', fetcher);
+    await api.uploadPhoto(
+      {
+        photo_id: '123e4567-e89b-42d3-a456-426614174000',
+        status: 'pending',
+        upload_url: 'https://storage.example.test',
+        expires_at: '2099-01-01T00:15:00.000Z',
+        form_fields: { key: 'owner/staging', 'Content-Type': 'image/jpeg' },
+      },
+      'file:///managed/photo.jpg',
+      11,
+    );
+    expect(uploadInit?.method).toBe('POST');
+    expect(uploadInit?.body).toBeInstanceOf(FormData);
+    const form = uploadInit?.body as FormData;
+    expect(form.get('key')).toBe('owner/staging');
+    expect(form.get('Content-Type')).toBe('image/jpeg');
+    expect(form.get('file')).toBeInstanceOf(Blob);
+  });
+
   it('preserves step_up_required for an SSO-only deletion response', async () => {
     const fetcher: typeof fetch = async () =>
       new Response(

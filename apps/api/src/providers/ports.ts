@@ -1,3 +1,4 @@
+import type { Readable } from 'node:stream';
 import type { ElevationProvider } from '@trail/domain';
 import type { Sql } from 'postgres';
 
@@ -33,8 +34,30 @@ export interface IdentityProviders {
   readonly google: IdentityVerifier;
 }
 
+export interface ObjectHead {
+  readonly sizeBytes: number;
+  readonly contentType: string | null;
+}
+
+export interface PresignedPost {
+  readonly url: string;
+  readonly fields: Readonly<Record<string, string>>;
+}
+
 export interface ObjectStorageProvider extends HealthCheckable {
   readonly bucket: string;
+  presignPost(
+    key: string,
+    contentType: string,
+    minimumBytes: number,
+    maximumBytes: number,
+    expiresSeconds: number,
+  ): Promise<PresignedPost>;
+  presignGet(key: string, expiresSeconds: number): Promise<string>;
+  head(key: string): Promise<ObjectHead | null>;
+  get(key: string): Promise<Readable>;
+  put(key: string, body: Buffer, contentType: string): Promise<void>;
+  delete(key: string): Promise<void>;
 }
 
 export interface EmailMessage {

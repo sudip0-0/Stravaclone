@@ -183,15 +183,16 @@ Work in phase order unless a dependency is explicitly resolved another way. A ta
 
 ## Phase 5 — Photos
 
-- [ ] **P0** Define signed upload initiation/completion/delete contracts with 15-minute expiry. (`PHO-3`, `PHO-5`)
-- [ ] **P0** Enforce ownership, ten-photo limit, 10 MB maximum per input, documented normalized dimension/output limits, and content validation. (`PHO-1`)
-- [ ] **P0** Normalize JPEG/HEIC/WebP, strip EXIF, and retain selected location/time separately. (`PHO-1`, `Q7`)
-- [ ] **P0** Use private object keys and short-lived signed download URLs; prevent public listing. (`PHO-3`)
-- [ ] **P0** Build multi-select library attach and pending upload gallery. (`PHO-1`, `PHO-6`)
-- [ ] **P1** Add camera capture from detail/post-save. (`PHO-2`)
-- [ ] **P0** Retry failed uploads independently from the activity. (`PHO-6`)
-- [ ] **P0** Delete DB record/blob idempotently through outbox; verify account/activity cascade. (`PHO-5`)
-- [ ] **P1** Add map markers when explicit capture time/location can map safely to track. (`PHO-4`)
+- [x] **P0** Define 15-minute constrained presigned POST initiation plus completion/list/download/delete contracts with distinct staging and normalized keys. (`PHO-3`, `PHO-5`)
+- [x] **P0** Enforce ownership, ten-photo limit, provider-side exact-declared-length/MIME POST policy (declared input capped at 10 MiB), exact HEAD verification, 4096-pixel normalized dimension limit, 8 MiB output cap, bounded pixel decoding, and byte-based validation. (`PHO-1`)
+- [ ] **P0 RELEASE BLOCKED — legal review:** JPEG/WebP normalization, 8 MiB output cap, orientation, and EXIF stripping are implemented. HEIC technically passes the real-fixture worker test but PHO-1 remains incomplete until LGPL relinking/source-distribution and HEVC patent obligations in `THIRD_PARTY_NOTICES.md` are approved; otherwise remove HEIC before release. (`PHO-1`, `Q7`)
+- [x] **P0** Use server-generated private object keys and short-lived signed download URLs; local MinIO anonymous listing/read tests pass. (`PHO-3`)
+- [x] **P0** Build permission-in-context multi-select attach, immediate app-private managed-file copies, pending/partial-failure gallery, processing polling, and managed-file cleanup. (`PHO-1`, `PHO-6`)
+- [ ] **P1** Add camera capture from detail/post-save; intentionally deferred because the library-only flow is clean and real-device camera permission QA has not run. (`PHO-2`)
+- [x] **P0** Recover upload leases through completion-first same-reservation policy reissue, automatically retry transient failures from persisted deadlines, clear a local server ID only after reissue confirms `not_found`, reserve `needs_attention` for terminal attempts, and isolate in-flight queues by account. (`PHO-6`)
+- [x] **P0** Delete DB record/blob idempotently through a `SKIP LOCKED` outbox; Postgres tests cover photo/activity/account cascades. (`PHO-5`)
+- [ ] **P1** Add map markers when explicit user-approved capture time/location can map safely to track; no EXIF location is parsed or stored. (`PHO-4`)
+- [ ] **P0 RELEASE GATE — physical devices/R2 required:** Complete `Phase5DeviceQA.md`; local automated evidence does not satisfy real permission, process-death, or Cloudflare R2 parity gates.
 
 **Exit:** Three-photo QA script passes, one can be deleted, and storage confirms the blob is gone.
 

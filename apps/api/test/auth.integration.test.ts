@@ -1,5 +1,6 @@
 import type { AuthResponse, ErrorEnvelope, User } from '@trail/contracts';
 import { randomUUID } from 'node:crypto';
+import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
@@ -47,7 +48,19 @@ describeWithPostgres('Phase 2 authentication and profile API', () => {
     providers = {
       database: { sql, checkHealth },
       identity: { apple: disabledVerifier, google: disabledVerifier },
-      objectStorage: { bucket: 'test', checkHealth },
+      objectStorage: {
+        bucket: 'test',
+        checkHealth,
+        presignPost: async () => ({
+          url: 'https://example.test/upload',
+          fields: {},
+        }),
+        presignGet: async () => 'https://example.test/download',
+        head: async () => null,
+        get: async () => Readable.from([]),
+        put: async () => undefined,
+        delete: async () => undefined,
+      },
       email: {
         enabled: true,
         checkHealth,

@@ -8,6 +8,7 @@ import { registerActivityRoutes } from './activities/routes.js';
 import { registerAuthRoutes } from './auth/routes.js';
 import type { ApiConfig } from './config.js';
 import { ApplicationError } from './http/application-error.js';
+import { registerPhotoRoutes } from './photos/routes.js';
 import type { DependencyStatus, Providers } from './providers/ports.js';
 
 export interface BuildAppOptions {
@@ -160,6 +161,7 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
   });
   registerAuthRoutes(app, options.config, options.providers);
   registerActivityRoutes(app, options.config, options.providers);
+  registerPhotoRoutes(app, options.config, options.providers);
   let readinessCache:
     | { readonly checkedAt: number; readonly ready: boolean }
     | undefined;

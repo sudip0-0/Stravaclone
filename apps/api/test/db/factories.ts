@@ -47,8 +47,9 @@ export function syntheticPhotoObjectKey(
   userId: string = syntheticIds.owner,
   activityId: string = syntheticIds.activity,
   photoId: string = syntheticIds.photo,
+  variant: 'staging' | 'normalized' = 'staging',
 ): string {
-  return `users/${userId}/activities/${activityId}/photos/${photoId}`;
+  return `users/${userId}/activities/${activityId}/photos/${photoId}/${variant}`;
 }
 
 export function syntheticActivity(

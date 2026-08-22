@@ -1,10 +1,10 @@
-import { Client as MinioClient } from 'minio';
 import nodemailer from 'nodemailer';
 import postgres from 'postgres';
 import type { ApiConfig } from '../config.js';
 import { ApplicationError } from '../http/application-error.js';
 import { createIdentityProviders } from './identity.js';
 import type { DependencyStatus, EmailMessage, Providers } from './ports.js';
+import { createS3CompatibleObjectStorage } from './s3-compatible.js';
 
 export function createLocalProviders(config: ApiConfig): Providers {
   const sql = postgres(config.DATABASE_URL, {
@@ -14,12 +14,13 @@ export function createLocalProviders(config: ApiConfig): Providers {
     ),
     max: 4,
   });
-  const objectClient = new MinioClient({
-    endPoint: config.OBJECT_STORAGE_ENDPOINT,
+  const objectStorage = createS3CompatibleObjectStorage({
+    endpoint: config.OBJECT_STORAGE_ENDPOINT,
     port: config.OBJECT_STORAGE_PORT,
-    useSSL: config.OBJECT_STORAGE_USE_SSL,
+    useSsl: config.OBJECT_STORAGE_USE_SSL,
     accessKey: config.OBJECT_STORAGE_ACCESS_KEY,
     secretKey: config.OBJECT_STORAGE_SECRET_KEY,
+    bucket: config.OBJECT_STORAGE_BUCKET,
   });
   const mailer =
     config.EMAIL_MODE === 'smtp'
@@ -55,18 +56,7 @@ export function createLocalProviders(config: ApiConfig): Providers {
       },
     },
     identity: createIdentityProviders(config),
-    objectStorage: {
-      bucket: config.OBJECT_STORAGE_BUCKET,
-      async checkHealth(): Promise<DependencyStatus> {
-        try {
-          return (await objectClient.bucketExists(config.OBJECT_STORAGE_BUCKET))
-            ? 'up'
-            : 'down';
-        } catch {
-          return 'down';
-        }
-      },
-    },
+    objectStorage,
     email: {
       enabled: mailer !== undefined,
       async checkHealth(): Promise<DependencyStatus> {

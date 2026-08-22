@@ -24,7 +24,7 @@ import {
   healthResponseSchema,
   identityLoginRequestSchema,
   loginRequestSchema,
-  photoUploadRequestSchema,
+  initiatePhotoUploadRequestSchema,
   readinessResponseSchema,
   refreshSessionRequestSchema,
   registerConfirmRequestSchema,
@@ -106,13 +106,17 @@ const basePhoto = {
   id,
   activity_id: secondId,
   status: 'ready',
+  mime: 'image/jpeg',
+  size_bytes: 1024,
   width: 1200,
   height: 800,
-  latitude: null,
-  longitude: null,
-  captured_at: null,
+  user_approved_latitude: null,
+  user_approved_longitude: null,
+  user_approved_captured_at: null,
   sort_order: 0,
+  error_code: null,
   download_url: 'https://example.test/photo',
+  download_expires_at: endedAt,
 };
 
 function expectJsonRoundTrip<T>(schema: z.ZodType<T>, value: unknown): void {
@@ -376,28 +380,31 @@ describe('route contracts', () => {
 describe('photo contracts', () => {
   it('enforces input size/content type and coordinate pairs', () => {
     expect(
-      photoUploadRequestSchema.safeParse({
-        content_type: 'image/jpeg',
-        size_bytes: MAX_PHOTO_INPUT_BYTES,
-        latitude: 51.5,
-        longitude: -0.1,
+      initiatePhotoUploadRequestSchema.safeParse({
+        input_mime: 'image/jpeg',
+        input_size_bytes: MAX_PHOTO_INPUT_BYTES,
+        user_approved_latitude: 51.5,
+        user_approved_longitude: -0.1,
       }).success,
     ).toBe(true);
     expect(
-      photoUploadRequestSchema.safeParse({
-        content_type: 'image/jpeg',
-        size_bytes: 1,
-        latitude: 51.5,
+      initiatePhotoUploadRequestSchema.safeParse({
+        input_mime: 'image/jpeg',
+        input_size_bytes: 1,
+        user_approved_latitude: 51.5,
       }).success,
     ).toBe(false);
     expect(
-      photoUploadRequestSchema.safeParse({
-        content_type: 'image/png',
-        size_bytes: MAX_PHOTO_INPUT_BYTES + 1,
+      initiatePhotoUploadRequestSchema.safeParse({
+        input_mime: 'image/png',
+        input_size_bytes: MAX_PHOTO_INPUT_BYTES + 1,
       }).success,
     ).toBe(false);
     expect(
-      activityPhotoSchema.safeParse({ ...basePhoto, latitude: 51.5 }).success,
+      activityPhotoSchema.safeParse({
+        ...basePhoto,
+        user_approved_latitude: 51.5,
+      }).success,
     ).toBe(false);
   });
 
@@ -418,9 +425,10 @@ describe('photo contracts', () => {
   it('round-trips signed upload and activity photo responses', () => {
     expectJsonRoundTrip(signedPhotoUploadSchema, {
       photo_id: id,
+      status: 'pending',
       upload_url: 'https://upload.example.test/object',
       expires_at: endedAt,
-      required_headers: { 'content-type': 'image/jpeg' },
+      form_fields: { 'Content-Type': 'image/jpeg', key: 'staging-key' },
     });
     expectJsonRoundTrip(activityPhotoSchema, basePhoto);
   });

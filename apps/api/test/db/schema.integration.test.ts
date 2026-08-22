@@ -80,7 +80,18 @@ describeWithPostgres('Trail PostgreSQL schema', () => {
     id,
     activityId,
     userId,
-    objectKey: syntheticPhotoObjectKey(userId, activityId, id),
+    stagingObjectKey: syntheticPhotoObjectKey(
+      userId,
+      activityId,
+      id,
+      'staging',
+    ),
+    normalizedObjectKey: syntheticPhotoObjectKey(
+      userId,
+      activityId,
+      id,
+      'normalized',
+    ),
     sortOrder,
   });
 
@@ -120,7 +131,7 @@ describeWithPostgres('Trail PostgreSQL schema', () => {
     }
   }, 30_000);
 
-  it('upgrades committed Phase 1 data through Phase 2 and the additive Phase 4 migration', async () => {
+  it('upgrades committed Phase 1 data through the single final Phase 5 migration', async () => {
     const upgradeDatabaseName = `trail_phase2_upgrade_${process.pid}_${Date.now()}`;
     await adminClient.unsafe(`CREATE DATABASE "${upgradeDatabaseName}"`);
     const upgradeUrl = new URL(baseDatabaseUrl!);
@@ -144,10 +155,76 @@ describeWithPostgres('Trail PostgreSQL schema', () => {
         values (${phase2ActivityId},${phase1Id},'run','2026-01-01T00:00:00Z','2026-01-01T00:01:00Z',100,60,60,0,0,'??')
       `;
       await executeMigrationFile(upgradeClient, '0003_phase4_activities.sql');
+      const phase4PhotoId = '550e8400-e29b-41d4-a716-446655440299';
+      const uploadingPhotoId = '550e8400-e29b-41d4-a716-446655440300';
+      const readyPhotoId = '550e8400-e29b-41d4-a716-446655440301';
+      const legacyKey = (photoId: string) =>
+        `users/${phase1Id}/activities/${phase2ActivityId}/photos/${photoId}`;
+      await upgradeClient`
+        insert into trail.activity_photos (id,activity_id,user_id,object_key,status,content_type,byte_size,width,height,sort_order)
+        values
+          (${phase4PhotoId},${phase2ActivityId},${phase1Id},${legacyKey(phase4PhotoId)},'pending','image/jpeg',100,null,null,0),
+          (${uploadingPhotoId},${phase2ActivityId},${phase1Id},${legacyKey(uploadingPhotoId)},'uploading','image/heic',10485760,4000,3000,1),
+          (${readyPhotoId},${phase2ActivityId},${phase1Id},${legacyKey(readyPhotoId)},'ready','image/webp',9437184,4096,4096,2)
+      `;
+      await upgradeClient`
+        insert into trail.object_deletion_outbox (owner_user_id,source_activity_id,source_photo_id,object_key)
+        values (${phase1Id},${phase2ActivityId},${uploadingPhotoId},${legacyKey(uploadingPhotoId)})
+      `;
+      await executeMigrationFile(upgradeClient, '0004_phase5_photos.sql');
       const migratedActivity = await upgradeClient<{ ingest_hash: string }[]>`
         select ingest_hash from trail.activities where id=${phase2ActivityId}
       `;
       expect(migratedActivity[0]?.ingest_hash).toMatch(/^[0-9a-f]{64}$/);
+      const migratedPhotos = await upgradeClient<
+        {
+          id: string;
+          legacy_object_key: string;
+          staging_object_key: string | null;
+          normalized_object_key: string | null;
+          status: string;
+          error_code: string;
+          mime: string | null;
+          size_bytes: number | null;
+          input_mime: string;
+          input_size_bytes: number;
+          upload_attempt_count: number;
+        }[]
+      >`select id,legacy_object_key,staging_object_key,normalized_object_key,status,error_code,mime,size_bytes,input_mime,input_size_bytes,upload_attempt_count from trail.activity_photos order by sort_order`;
+      expect(migratedPhotos).toEqual([
+        expect.objectContaining({
+          id: phase4PhotoId,
+          legacy_object_key: legacyKey(phase4PhotoId),
+          staging_object_key: null,
+          normalized_object_key: null,
+          status: 'failed',
+          error_code: 'legacy_reupload_required',
+          mime: null,
+          size_bytes: null,
+          input_mime: 'image/jpeg',
+          input_size_bytes: 100,
+          upload_attempt_count: 0,
+        }),
+        expect.objectContaining({
+          id: uploadingPhotoId,
+          legacy_object_key: legacyKey(uploadingPhotoId),
+          status: 'failed',
+          error_code: 'legacy_reupload_required',
+          input_mime: 'image/heic',
+          input_size_bytes: 10485760,
+        }),
+        expect.objectContaining({
+          id: readyPhotoId,
+          legacy_object_key: legacyKey(readyPhotoId),
+          status: 'failed',
+          error_code: 'legacy_reupload_required',
+          input_mime: 'image/webp',
+          input_size_bytes: 9437184,
+        }),
+      ]);
+      expect(
+        await upgradeClient`select object_key from trail.object_deletion_outbox where source_photo_id=${uploadingPhotoId}`,
+      ).toEqual([{ object_key: legacyKey(uploadingPhotoId) }]);
       const preserved = await upgradeClient<
         { email: string; auth_version: number }[]
       >`
@@ -189,7 +266,7 @@ describeWithPostgres('Trail PostgreSQL schema', () => {
       from pg_constraint
       where conrelid = 'trail.activities'::regclass and contype = 'p'
     `;
-    expect(migrationRows[0]?.count).toBe(4);
+    expect(migrationRows[0]?.count).toBe(5);
     expect(activityColumns.map((row) => row.column_name)).toContain('id');
     expect(activityColumns.map((row) => row.column_name)).not.toContain(
       'client_id',
@@ -526,10 +603,17 @@ describeWithPostgres('Trail PostgreSQL schema', () => {
         database.insert(activityPhotos).values({
           ...photoValues('00000000-0000-4000-8000-000000000600', 0),
           userId: syntheticIds.otherOwner,
-          objectKey: syntheticPhotoObjectKey(
+          stagingObjectKey: syntheticPhotoObjectKey(
             syntheticIds.otherOwner,
             syntheticIds.activity,
             '00000000-0000-4000-8000-000000000600',
+            'staging',
+          ),
+          normalizedObjectKey: syntheticPhotoObjectKey(
+            syntheticIds.otherOwner,
+            syntheticIds.activity,
+            '00000000-0000-4000-8000-000000000600',
+            'normalized',
           ),
         }),
       '23503',
@@ -538,10 +622,11 @@ describeWithPostgres('Trail PostgreSQL schema', () => {
       () =>
         database.insert(activityPhotos).values({
           ...photoValues('00000000-0000-4000-8000-000000000601', 0),
-          objectKey: syntheticPhotoObjectKey(
+          stagingObjectKey: syntheticPhotoObjectKey(
             syntheticIds.otherOwner,
             syntheticIds.activity,
             '00000000-0000-4000-8000-000000000601',
+            'staging',
           ),
         }),
       '23514',
@@ -569,7 +654,7 @@ describeWithPostgres('Trail PostgreSQL schema', () => {
       ownerUserId: syntheticIds.owner,
       sourceActivityId: syntheticIds.activity,
       sourcePhotoId: syntheticIds.photo,
-      objectKey: photo.objectKey,
+      objectKey: photo.stagingObjectKey,
     });
     await database
       .delete(activityPhotos)
@@ -579,15 +664,22 @@ describeWithPostgres('Trail PostgreSQL schema', () => {
       select owner_user_id, source_activity_id, source_photo_id, object_key, status
       from trail.object_deletion_outbox
     `;
-    expect(jobs).toMatchObject([
-      {
-        owner_user_id: syntheticIds.owner,
-        source_activity_id: syntheticIds.activity,
-        source_photo_id: syntheticIds.photo,
-        object_key: photo.objectKey,
-        status: 'pending',
-      },
-    ]);
+    expect(jobs).toHaveLength(2);
+    expect(jobs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          owner_user_id: syntheticIds.owner,
+          source_activity_id: syntheticIds.activity,
+          source_photo_id: syntheticIds.photo,
+          object_key: photo.stagingObjectKey,
+          status: 'pending',
+        }),
+        expect.objectContaining({
+          object_key: photo.normalizedObjectKey,
+          status: 'pending',
+        }),
+      ]),
+    );
     await client`
       update trail.object_deletion_outbox
       set status = 'completed', completed_at = now(), updated_at = now()
@@ -614,7 +706,7 @@ describeWithPostgres('Trail PostgreSQL schema', () => {
       .where(eq(activities.id, syntheticIds.activity));
     expect(
       await client`select count(*)::integer as count from trail.object_deletion_outbox`,
-    ).toMatchObject([{ count: 2 }]);
+    ).toMatchObject([{ count: 4 }]);
 
     const accountActivityId = '00000000-0000-4000-8000-000000000202';
     const accountPhotoId = '00000000-0000-4000-8000-000000000403';
@@ -643,19 +735,22 @@ describeWithPostgres('Trail PostgreSQL schema', () => {
       select owner_user_id, source_activity_id, source_photo_id, object_key
       from trail.object_deletion_outbox order by source_photo_id
     `;
-    expect(jobs).toHaveLength(3);
+    expect(jobs).toHaveLength(6);
     expect(jobs.every((job) => job.owner_user_id === syntheticIds.owner)).toBe(
       true,
     );
     expect(
-      jobs.every(
-        (job) =>
-          job.object_key ===
-          syntheticPhotoObjectKey(
-            syntheticIds.owner,
-            job.source_activity_id,
-            job.source_photo_id,
-          ),
+      jobs.every((job) =>
+        (['staging', 'normalized'] as const).some(
+          (variant) =>
+            job.object_key ===
+            syntheticPhotoObjectKey(
+              syntheticIds.owner,
+              job.source_activity_id,
+              job.source_photo_id,
+              variant,
+            ),
+        ),
       ),
     ).toBe(true);
     expect(jobs.map((job) => job.source_activity_id)).toContain(

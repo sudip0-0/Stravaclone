@@ -1,14 +1,20 @@
 import {
   acceptedResponseSchema,
-  authResponseSchema,
   activityListResponseSchema,
+  activityPhotosSchema,
   activitySchema,
+  authResponseSchema,
+  photoCompleteResponseSchema,
+  signedPhotoUploadSchema,
   userSchema,
   type Activity,
   type ActivityListResponse,
   type AuthResponse,
   type CreateActivityRequest,
+  type InitiatePhotoUploadRequest,
+  type PhotoCompleteResponse,
   type SessionTokens,
+  type SignedPhotoUpload,
   type UpdateActivityRequest,
   type UpdateUserRequest,
   type User,
@@ -168,6 +174,78 @@ export class ApiClient implements RefreshTransport {
         {
           method: 'DELETE',
         },
+      ),
+    );
+  }
+  async initiatePhotoUpload(
+    activityId: string,
+    input: InitiatePhotoUploadRequest,
+  ): Promise<SignedPhotoUpload> {
+    return expectResponse(
+      await this.authorized(
+        `/v1/activities/${encodeURIComponent(activityId)}/photos/initiate`,
+        { method: 'POST', body: JSON.stringify(input) },
+      ),
+      signedPhotoUploadSchema,
+    );
+  }
+  async reissuePhotoUpload(
+    activityId: string,
+    photoId: string,
+  ): Promise<SignedPhotoUpload> {
+    return expectResponse(
+      await this.authorized(
+        `/v1/activities/${encodeURIComponent(activityId)}/photos/${encodeURIComponent(photoId)}/reissue`,
+        { method: 'POST' },
+      ),
+      signedPhotoUploadSchema,
+    );
+  }
+  async uploadPhoto(
+    signed: SignedPhotoUpload,
+    localUri: string,
+    expectedBytes: number,
+  ): Promise<void> {
+    const source = await this.fetcher(localUri);
+    if (!source.ok) throw new Error('local_photo_unavailable');
+    const blob = await source.blob();
+    if (blob.size !== expectedBytes) throw new Error('local_photo_changed');
+    const form = new FormData();
+    for (const [name, value] of Object.entries(signed.form_fields))
+      form.append(name, value);
+    form.append('file', blob, 'photo');
+    const response = await this.fetcher(signed.upload_url, {
+      method: 'POST',
+      body: form,
+    });
+    if (!response.ok)
+      throw new ApiResponseError(response.status, 'photo_upload_failed');
+  }
+  async completePhotoUpload(
+    activityId: string,
+    photoId: string,
+  ): Promise<PhotoCompleteResponse> {
+    return expectResponse(
+      await this.authorized(
+        `/v1/activities/${encodeURIComponent(activityId)}/photos/${encodeURIComponent(photoId)}/complete`,
+        { method: 'POST' },
+      ),
+      photoCompleteResponseSchema,
+    );
+  }
+  async listPhotos(activityId: string) {
+    return expectResponse(
+      await this.authorized(
+        `/v1/activities/${encodeURIComponent(activityId)}/photos`,
+      ),
+      activityPhotosSchema,
+    );
+  }
+  async deletePhoto(activityId: string, photoId: string): Promise<void> {
+    await expectNoContent(
+      await this.authorized(
+        `/v1/activities/${encodeURIComponent(activityId)}/photos/${encodeURIComponent(photoId)}`,
+        { method: 'DELETE' },
       ),
     );
   }
