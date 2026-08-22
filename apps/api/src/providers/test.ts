@@ -20,7 +20,11 @@ export function createTestProviders(
       send: async () => undefined,
     },
     mapStyle: { styleUrl: 'https://example.test/style.json' },
-    elevation: { enrich: async (points) => points },
+    elevation: {
+      getElevations: async ({ points }) => ({
+        elevationsM: points.map(() => null),
+      }),
+    },
     routing: {
       route: async () => Promise.reject(new Error('Routing disabled')),
     },

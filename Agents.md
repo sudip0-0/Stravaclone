@@ -8,7 +8,7 @@ Do not describe or market Trail as Strava, and do not add social feeds, follows,
 
 ## Repository state and target structure
 
-The repository is currently documentation-only; no application scaffold or executable commands exist yet. The intended monorepo layout is:
+The repository now contains the Phase 0 pnpm application scaffold and executable workspace commands. The monorepo layout is:
 
 ```text
 apps/mobile/          Expo React Native application
@@ -24,7 +24,7 @@ Tasks.md              Ordered implementation backlog
 ImplementationPlan.md Phase-by-phase execution and delegation gates
 ```
 
-Do not create this structure until implementation is explicitly requested. The selected baseline is Node 22, pnpm workspaces, Expo SDK 56 with Expo's React Native version, Fastify, Zod, Drizzle/Postgres, Vitest, ESLint, and Prettier. Local infrastructure is Docker Postgres 17, MinIO, and Mailpit. Document actual commands after bootstrap; these selections do not mean bootstrap is complete.
+The implemented baseline is Node 22, pnpm workspaces, Expo SDK 56 with Expo's React Native version, Fastify, Zod, Drizzle/Postgres, Vitest, ESLint, and Prettier. Local infrastructure is Docker Postgres 17, MinIO, and Mailpit. Keep actual bootstrap commands in the root `README.md`; the scaffold does not imply that product features are complete.
 
 ## Engineering principles
 
@@ -64,9 +64,14 @@ Before marking work complete, run the repository’s formatter, lint, typecheck,
 
 Use the repository roles by exact `.devin` name:
 
-- **`swe-worker`** owns scaffolding, contracts/domain/data, API/mobile implementation, infrastructure, migrations, automated tests, and focused technical documentation. Assign one bounded work package at a time and require exact commands/results in its handoff.
-- **`design-specialist`** owns interaction/UI execution, accessibility behavior, visual states, and device-preview review when an approved design source exists. It does not invent missing product behavior or override PRD acceptance criteria.
-- The parent orchestrator owns sequencing, cross-package integration, decision consistency, release gates, external-provider coordination, and final review. Do not ask either worker to mark a phase complete without acceptance evidence.
+- **`infrastructure-specialist`** leads Phase 0 and owns CI/CD, environments, deployment, providers, data-service operations, observability, and recovery.
+- **`swe-worker`** owns general backend, contracts, domain, data, and cross-cutting implementation.
+- **`mobile-specialist`** owns Expo, iOS/Android, local persistence, recording, sync, permissions, and platform behavior.
+- **`design-specialist`** owns interaction/UI and accessibility work only when approved design input exists; it does not invent product behavior.
+- **`security-specialist`** owns independent authentication, privacy, secret, storage-boundary, and redaction review.
+- **`testing-specialist`** owns test strategy, failure-mode coverage, device scripts, and release evidence.
+- **`code-reviewer`** independently reviews correctness, maintainability, requirements, and regressions.
+- The parent orchestrator owns sequencing, cross-package integration, decision consistency, release gates, external-provider coordination, and final review. Follow `.devin/orchestration.md` for phase leadership/support and keep implementer and reviewer runs independent.
 
 Follow `ImplementationPlan.md` phase gates and commit boundaries. Parallel work is allowed only when contracts are accepted and file ownership does not overlap. No agent may claim app implementation is complete while this repository remains documentation-only.
 

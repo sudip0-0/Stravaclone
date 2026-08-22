@@ -1,6 +1,6 @@
 # Trail v1 Implementation Plan
 
-**Status:** Phase 0 implementation complete; parent integration review and external decisions remain  
+**Status:** Phase 0 local foundation integrated; Phase 1 local implementation complete; external Phase 0 decisions remain
 **Authority:** `PRD.md` is authoritative. This plan sequences delivery; it does not weaken a PRD MUST.  
 **Derived documents:** `product.md`, `Architecture.md`, `Tasks.md`, and `Agents.md`  
 **Execution model:** The parent orchestrator coordinates bounded assignments using the role ownership in `.devin/orchestration.md`. Phase 0 is led by `infrastructure-specialist`, supported by `swe-worker`, `security-specialist`, and `testing-specialist`, with independent `code-reviewer` and security review.
@@ -83,7 +83,7 @@ Create a reproducible, production-shaped monorepo foundation without implying th
 
 ### Status and evidence (2026-08-22)
 
-- **Implemented and repaired:** P0.1–P0.4 and the non-visual P0.5 placeholder shell. Blocking/high/medium review findings were repaired; P0.6 independent rereview remains an orchestration responsibility.
+- **Implemented, repaired, and locally integrated:** P0.1–P0.4 and the non-visual P0.5 placeholder shell. Blocking/high/medium review findings and Phase 1 integration regressions were repaired; external provider/identity decisions and independent release reviews remain outside the local foundation gate.
 - `pnpm install --frozen-lockfile`, `pnpm audit:security`, `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed locally on Node 22.19.0 and pnpm 10.32.1. Focused API coverage is 23 passing tests across environment/SMTP security, deduplicated bounded readiness, safe errors, query/request-ID log redaction, span-attribute privacy, local providers, and telemetry-before-runtime ordering.
 - The Expo build now exports only Android and iOS. Expo SDK 56.0.14, React 19.2.3, and React Native 0.85.3 remain aligned; web scripts, output, React DOM, and React Native Web were removed.
 - Audit remediation upgraded or overrode Fastify, Drizzle, Nodemailer, OpenTelemetry, Vitest, esbuild, fast-xml-parser, uuid, and protobufjs. Full and production audits report zero critical and two high advisories, both unpatched `image-size` issues reachable only through Expo Metro build tooling; CI ignores only those named advisories with rationale in `README.md`.
@@ -133,7 +133,7 @@ Establish shared validated contracts, deterministic GPS/stat calculations, and t
 
 - Invalid payloads fail with stable schema errors.
 - Domain fixtures produce deterministic expected distance/time/splits/elevation.
-- Database enforces idempotency and ownership relationships.
+- Database enforces client UUID uniqueness and ownership relationships; request replay/conflict semantics are deferred to Phase 4.
 - Accepted filtered points remain stored; display downsampling does not mutate source data.
 
 ### Automated verification
@@ -141,6 +141,14 @@ Establish shared validated contracts, deterministic GPS/stat calculations, and t
 - Vitest property/fixture tests for poor accuracy, impossible jumps, pauses, gaps, unit changes, final partial splits, and elevation noise.
 - Migration up/down or forward-recovery tests on Postgres 17.
 - Constraint/index integration tests and schema/contract serialization tests.
+
+### Status and evidence (2026-08-22)
+
+- **Complete for local Phase 1 scope:** shared Zod contracts, deterministic activity domain functions, core Drizzle schema/migrations, synthetic DB factories, and the parent contract/data integration review are implemented. Phase 2 and later work remains untouched.
+- The API now consumes the provider-neutral `ElevationProvider`, request, and result types from `@trail/domain`; local and test adapters return only positional `elevationsM` results, with no concrete provider payload in the API boundary. API package dependency, TypeScript project-reference, and workspace build wiring were verified.
+- `pnpm install --frozen-lockfile`, `pnpm audit:security`, `pnpm format:check`, `pnpm lint`, root `pnpm typecheck`, direct `pnpm exec tsc -p apps/api/test/tsconfig.json`, `pnpm test`, and `pnpm build` passed. Tests comprised 20 contract, 22 domain, and 35 API tests, including 11 Postgres 17 migration/constraint/index integration tests.
+- Postgres 17 was started from `infra/compose.yaml` with its existing named volume, reached healthy state, and the full suite ran with `CI=true` plus `TEST_DATABASE_URL`. `drizzle-kit generate` reported “No schema changes,” Compose configuration validated, and `git diff --check` passed.
+- The schema reserves owner-scoped client UUID uniqueness. Identical replay versus immutable-payload conflict behavior is an activity API concern and remains explicitly deferred to Phase 4.
 
 ### Manual/external blockers
 

@@ -45,6 +45,21 @@ describe('local providers', () => {
     await providers.close();
   });
 
+  it('uses the provider-neutral elevation boundary without adapter payloads', async () => {
+    mocks.bucketExists.mockResolvedValue(true);
+    const providers = createLocalProviders(parseConfig(validEnvironment));
+
+    await expect(
+      providers.elevation.getElevations({
+        points: [
+          { latitude: 51.5, longitude: -0.1 },
+          { latitude: 51.6, longitude: -0.2 },
+        ],
+      }),
+    ).resolves.toEqual({ elevationsM: [null, null] });
+    await providers.close();
+  });
+
   it('uses unauthenticated non-TLS SMTP only for explicit Mailpit mode', async () => {
     mocks.bucketExists.mockResolvedValue(true);
     const providers = createLocalProviders(

@@ -63,6 +63,9 @@ importers:
       '@trail/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@trail/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       dotenv:
         specifier: 17.2.3
         version: 17.2.3

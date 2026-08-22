@@ -42,7 +42,7 @@ export function serializeRequest(request: {
 
 export function createLoggerOptions(
   config: ApiConfig,
-): NonNullable<FastifyServerOptions['logger']> {
+): Exclude<FastifyServerOptions['logger'], boolean | undefined> {
   return {
     level: config.LOG_LEVEL,
     serializers: { req: serializeRequest },

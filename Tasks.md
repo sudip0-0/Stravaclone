@@ -1,6 +1,6 @@
 # Trail v1 Delivery Plan
 
-**Status:** Initial backlog derived from `PRD.md` v1.0  
+**Status:** Phase 1 local implementation complete; Phase 0 external decisions remain
 **Legend:** `[ ]` not started · `[~]` in progress · `[x]` complete · `[!]` blocked  
 **Priority:** P0 ship blocker · P1 expected for v1 unless explicitly cut · P2 optional
 
@@ -55,27 +55,27 @@ Work in phase order unless a dependency is explicitly resolved another way. A ta
 
 ### 1.1 Shared contracts
 
-- [ ] **P0** Define schemas/types for sports, units, auth, users, activities, points, splits, routes, photos, stats, pagination, and errors.
-- [ ] **P0** Establish API versioning under `/v1`, compatibility rules, cursor pagination, and stable error codes.
-- [ ] **P0** Add contract fixtures and tests for valid/invalid payloads.
+- [x] **P0** Define schemas/types for sports, units, auth, users, activities, points, splits, routes, photos, stats, pagination, and errors.
+- [x] **P0** Establish API versioning under `/v1`, compatibility rules, cursor pagination, and stable error codes.
+- [x] **P0** Add contract fixtures and tests for valid/invalid payloads.
 
 ### 1.2 Pure activity domain
 
-- [ ] **P0** Implement coordinate/time validation and accuracy classification. (`REC-3`, `NFR-GPS`)
-- [ ] **P0** Implement sport-specific impossible-jump filtering and geodesic segment distance. (`NFR-GPS`)
-- [ ] **P0** Implement elapsed/moving time with pause intervals. (`REC-1`, `ACT-2`)
-- [ ] **P0** Implement metric/imperial split generation including final partial split. (`ACT-4`, `PROF-2`)
-- [ ] **P0** Implement pace/speed and unit conversion/formatting boundaries. (`ACT-2`, `PROF-2`)
-- [ ] **P0** Implement elevation smoothing/gain fallback and provider-independent enrichment types. (`ACT-5`)
-- [ ] **P0** Implement overview polyline encoding and display downsampling. (`ACT-3`, performance NFR)
-- [ ] **P0** Add deterministic fixture tests for urban noise, poor fixes, pauses, gaps, rides, and unit changes.
+- [x] **P0** Implement coordinate/time validation and accuracy classification. (`REC-3`, `NFR-GPS`)
+- [x] **P0** Implement sport-specific impossible-jump filtering and geodesic segment distance. (`NFR-GPS`)
+- [x] **P0** Implement elapsed/moving time with pause intervals. (`REC-1`, `ACT-2`)
+- [x] **P0** Implement metric/imperial split generation including final partial split. (`ACT-4`, `PROF-2`)
+- [x] **P0** Implement pace/speed and unit conversion/formatting boundaries. (`ACT-2`, `PROF-2`)
+- [x] **P0** Implement elevation smoothing/gain fallback and provider-independent enrichment types. (`ACT-5`)
+- [x] **P0** Implement overview polyline encoding and display downsampling. (`ACT-3`, performance NFR)
+- [x] **P0** Add deterministic fixture tests for urban noise, poor fixes, pauses, gaps, rides, and unit changes.
 
 ### 1.3 Database
 
-- [ ] **P0** Migrate users, identities, refresh tokens, activities, activity points, splits/elevation, routes, and photos. (`PRD §9`)
-- [ ] **P0** Add constraints, owner/date indexes, idempotency uniqueness, and migration tests.
-- [ ] **P0** Add object-deletion/outbox records for reliable photo/account cleanup.
-- [ ] **P0** Add seed/factory utilities using synthetic tracks only.
+- [x] **P0** Migrate users, identities, refresh tokens, activities, activity points, splits/elevation, routes, and photos. (`PRD §9`)
+- [x] **P0** Add constraints, owner/date indexes, idempotency uniqueness, and migration tests. (Request replay/conflict semantics remain deferred to Phase 4.)
+- [x] **P0** Add object-deletion/outbox records for reliable photo/account cleanup.
+- [x] **P0** Add seed/factory utilities using synthetic tracks only.
 
 **Exit:** Domain calculations are deterministic; schema supports all MUST entities and owner isolation.
 

@@ -1,0 +1,1488 @@
+{
+  "id": "da3a2c09-107f-4d2b-9ee5-796b68a93069",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "trail.activities": {
+      "name": "activities",
+      "schema": "trail",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "route_id": {
+          "name": "route_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sport": {
+          "name": "sport",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ended_at": {
+          "name": "ended_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "distance_m": {
+          "name": "distance_m",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "moving_time_s": {
+          "name": "moving_time_s",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "elapsed_time_s": {
+          "name": "elapsed_time_s",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "elevation_gain_m": {
+          "name": "elevation_gain_m",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "elevation_loss_m": {
+          "name": "elevation_loss_m",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "polyline": {
+          "name": "polyline",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "activities_user_started_at_idx": {
+          "name": "activities_user_started_at_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "started_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "activities_user_id_users_id_fk": {
+          "name": "activities_user_id_users_id_fk",
+          "tableFrom": "activities",
+          "tableTo": "users",
+          "schemaTo": "trail",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "activities_route_owner_fk": {
+          "name": "activities_route_owner_fk",
+          "tableFrom": "activities",
+          "tableTo": "routes",
+          "schemaTo": "trail",
+          "columnsFrom": ["route_id", "user_id"],
+          "columnsTo": ["id", "user_id"],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "activities_id_user_id_unique": {
+          "name": "activities_id_user_id_unique",
+          "nullsNotDistinct": false,
+          "columns": ["id", "user_id"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "activities_sport_check": {
+          "name": "activities_sport_check",
+          "value": "\"trail\".\"activities\".\"sport\" in ('run', 'ride', 'walk', 'hike')"
+        },
+        "activities_title_length_check": {
+          "name": "activities_title_length_check",
+          "value": "\"trail\".\"activities\".\"title\" is null or length(trim(\"trail\".\"activities\".\"title\")) between 1 and 200"
+        },
+        "activities_notes_length_check": {
+          "name": "activities_notes_length_check",
+          "value": "\"trail\".\"activities\".\"notes\" is null or length(\"trail\".\"activities\".\"notes\") <= 10000"
+        },
+        "activities_time_bounds_check": {
+          "name": "activities_time_bounds_check",
+          "value": "\"trail\".\"activities\".\"ended_at\" > \"trail\".\"activities\".\"started_at\" and \"trail\".\"activities\".\"ended_at\" - \"trail\".\"activities\".\"started_at\" <= interval '12 hours'"
+        },
+        "activities_distance_check": {
+          "name": "activities_distance_check",
+          "value": "\"trail\".\"activities\".\"distance_m\" >= 0 and \"trail\".\"activities\".\"distance_m\" not in ('NaN'::double precision, 'Infinity'::double precision, '-Infinity'::double precision)"
+        },
+        "activities_elapsed_time_check": {
+          "name": "activities_elapsed_time_check",
+          "value": "\"trail\".\"activities\".\"elapsed_time_s\" >= 0 and \"trail\".\"activities\".\"elapsed_time_s\" <= 43200"
+        },
+        "activities_moving_time_check": {
+          "name": "activities_moving_time_check",
+          "value": "\"trail\".\"activities\".\"moving_time_s\" >= 0 and \"trail\".\"activities\".\"moving_time_s\" <= \"trail\".\"activities\".\"elapsed_time_s\""
+        },
+        "activities_elevation_gain_check": {
+          "name": "activities_elevation_gain_check",
+          "value": "\"trail\".\"activities\".\"elevation_gain_m\" >= 0 and \"trail\".\"activities\".\"elevation_gain_m\" not in ('NaN'::double precision, 'Infinity'::double precision, '-Infinity'::double precision)"
+        },
+        "activities_elevation_loss_check": {
+          "name": "activities_elevation_loss_check",
+          "value": "\"trail\".\"activities\".\"elevation_loss_m\" >= 0 and \"trail\".\"activities\".\"elevation_loss_m\" not in ('NaN'::double precision, 'Infinity'::double precision, '-Infinity'::double precision)"
+        },
+        "activities_polyline_length_check": {
+          "name": "activities_polyline_length_check",
+          "value": "length(\"trail\".\"activities\".\"polyline\") between 1 and 1000000"
+        },
+        "activities_updated_at_check": {
+          "name": "activities_updated_at_check",
+          "value": "\"trail\".\"activities\".\"updated_at\" >= \"trail\".\"activities\".\"created_at\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "trail.activity_elevation_samples": {
+      "name": "activity_elevation_samples",
+      "schema": "trail",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "activity_id": {
+          "name": "activity_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "seq": {
+          "name": "seq",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "distance_m": {
+          "name": "distance_m",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "elapsed_time_s": {
+          "name": "elapsed_time_s",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "elevation_m": {
+          "name": "elevation_m",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'gps_smoothed'"
+        }
+      },
+      "indexes": {
+        "activity_elevation_activity_id_idx": {
+          "name": "activity_elevation_activity_id_idx",
+          "columns": [
+            {
+              "expression": "activity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "activity_elevation_samples_activity_id_activities_id_fk": {
+          "name": "activity_elevation_samples_activity_id_activities_id_fk",
+          "tableFrom": "activity_elevation_samples",
+          "tableTo": "activities",
+          "schemaTo": "trail",
+          "columnsFrom": ["activity_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "activity_elevation_activity_seq_unique": {
+          "name": "activity_elevation_activity_seq_unique",
+          "nullsNotDistinct": false,
+          "columns": ["activity_id", "seq"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "activity_elevation_seq_check": {
+          "name": "activity_elevation_seq_check",
+          "value": "\"trail\".\"activity_elevation_samples\".\"seq\" >= 0"
+        },
+        "activity_elevation_distance_check": {
+          "name": "activity_elevation_distance_check",
+          "value": "\"trail\".\"activity_elevation_samples\".\"distance_m\" >= 0 and \"trail\".\"activity_elevation_samples\".\"distance_m\" not in ('NaN'::double precision, 'Infinity'::double precision, '-Infinity'::double precision)"
+        },
+        "activity_elevation_time_check": {
+          "name": "activity_elevation_time_check",
+          "value": "\"trail\".\"activity_elevation_samples\".\"elapsed_time_s\" >= 0 and \"trail\".\"activity_elevation_samples\".\"elapsed_time_s\" not in ('NaN'::double precision, 'Infinity'::double precision, '-Infinity'::double precision)"
+        },
+        "activity_elevation_value_check": {
+          "name": "activity_elevation_value_check",
+          "value": "\"trail\".\"activity_elevation_samples\".\"elevation_m\" not in ('NaN'::double precision, 'Infinity'::double precision, '-Infinity'::double precision)"
+        },
+        "activity_elevation_source_check": {
+          "name": "activity_elevation_source_check",
+          "value": "\"trail\".\"activity_elevation_samples\".\"source\" in ('gps_smoothed', 'dem')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "trail.activity_photos": {
+      "name": "activity_photos",
+      "schema": "trail",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "activity_id": {
+          "name": "activity_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "object_key": {
+          "name": "object_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "content_type": {
+          "name": "content_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "byte_size": {
+          "name": "byte_size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "width": {
+          "name": "width",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "height": {
+          "name": "height",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "latitude": {
+          "name": "latitude",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "longitude": {
+          "name": "longitude",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "captured_at": {
+          "name": "captured_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "activity_photos_activity_id_idx": {
+          "name": "activity_photos_activity_id_idx",
+          "columns": [
+            {
+              "expression": "activity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "activity_photos_user_id_idx": {
+          "name": "activity_photos_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "activity_photos_activity_owner_fk": {
+          "name": "activity_photos_activity_owner_fk",
+          "tableFrom": "activity_photos",
+          "tableTo": "activities",
+          "schemaTo": "trail",
+          "columnsFrom": ["activity_id", "user_id"],
+          "columnsTo": ["id", "user_id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "activity_photos_object_key_unique": {
+          "name": "activity_photos_object_key_unique",
+          "nullsNotDistinct": false,
+          "columns": ["object_key"]
+        },
+        "activity_photos_activity_sort_unique": {
+          "name": "activity_photos_activity_sort_unique",
+          "nullsNotDistinct": false,
+          "columns": ["activity_id", "sort_order"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "activity_photos_object_key_owner_check": {
+          "name": "activity_photos_object_key_owner_check",
+          "value": "length(\"trail\".\"activity_photos\".\"object_key\") <= 1024 and \"trail\".\"activity_photos\".\"object_key\" = 'users/' || \"trail\".\"activity_photos\".\"user_id\"::text || '/activities/' || \"trail\".\"activity_photos\".\"activity_id\"::text || '/photos/' || \"trail\".\"activity_photos\".\"id\"::text"
+        },
+        "activity_photos_status_check": {
+          "name": "activity_photos_status_check",
+          "value": "\"trail\".\"activity_photos\".\"status\" in ('pending', 'uploading', 'ready', 'failed')"
+        },
+        "activity_photos_content_type_check": {
+          "name": "activity_photos_content_type_check",
+          "value": "\"trail\".\"activity_photos\".\"content_type\" is null or \"trail\".\"activity_photos\".\"content_type\" in ('image/jpeg', 'image/heic', 'image/webp')"
+        },
+        "activity_photos_byte_size_check": {
+          "name": "activity_photos_byte_size_check",
+          "value": "\"trail\".\"activity_photos\".\"byte_size\" is null or (\"trail\".\"activity_photos\".\"byte_size\" > 0 and \"trail\".\"activity_photos\".\"byte_size\" <= 10485760)"
+        },
+        "activity_photos_dimensions_check": {
+          "name": "activity_photos_dimensions_check",
+          "value": "(\"trail\".\"activity_photos\".\"width\" is null) = (\"trail\".\"activity_photos\".\"height\" is null) and (\"trail\".\"activity_photos\".\"width\" is null or (\"trail\".\"activity_photos\".\"width\" > 0 and \"trail\".\"activity_photos\".\"height\" > 0))"
+        },
+        "activity_photos_location_check": {
+          "name": "activity_photos_location_check",
+          "value": "(\"trail\".\"activity_photos\".\"latitude\" is null) = (\"trail\".\"activity_photos\".\"longitude\" is null) and (\"trail\".\"activity_photos\".\"latitude\" is null or (\"trail\".\"activity_photos\".\"latitude\" between -90 and 90 and \"trail\".\"activity_photos\".\"longitude\" between -180 and 180 and \"trail\".\"activity_photos\".\"latitude\" not in ('NaN'::double precision, 'Infinity'::double precision, '-Infinity'::double precision) and \"trail\".\"activity_photos\".\"longitude\" not in ('NaN'::double precision, 'Infinity'::double precision, '-Infinity'::double precision)))"
+        },
+        "activity_photos_sort_order_check": {
+          "name": "activity_photos_sort_order_check",
+          "value": "\"trail\".\"activity_photos\".\"sort_order\" >= 0 and \"trail\".\"activity_photos\".\"sort_order\" < 10"
+        },
+        "activity_photos_updated_at_check": {
+          "name": "activity_photos_updated_at_check",
+          "value": "\"trail\".\"activity_photos\".\"updated_at\" >= \"trail\".\"activity_photos\".\"created_at\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "trail.activity_points": {
+      "name": "activity_points",
+      "schema": "trail",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "activity_id": {
+          "name": "activity_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "seq": {
+          "name": "seq",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "latitude": {
+          "name": "latitude",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "longitude": {
+          "name": "longitude",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "elevation_m": {
+          "name": "elevation_m",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recorded_at": {
+          "name": "recorded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "accuracy_m": {
+          "name": "accuracy_m",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "activity_points_activity_recorded_at_idx": {
+          "name": "activity_points_activity_recorded_at_idx",
+          "columns": [
+            {
+              "expression": "activity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "recorded_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "activity_points_activity_id_activities_id_fk": {
+          "name": "activity_points_activity_id_activities_id_fk",
+          "tableFrom": "activity_points",
+          "tableTo": "activities",
+          "schemaTo": "trail",
+          "columnsFrom": ["activity_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "activity_points_activity_seq_unique": {
+          "name": "activity_points_activity_seq_unique",
+          "nullsNotDistinct": false,
+          "columns": ["activity_id", "seq"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "activity_points_seq_check": {
+          "name": "activity_points_seq_check",
+          "value": "\"trail\".\"activity_points\".\"seq\" >= 0"
+        },
+        "activity_points_latitude_check": {
+          "name": "activity_points_latitude_check",
+          "value": "\"trail\".\"activity_points\".\"latitude\" between -90 and 90 and \"trail\".\"activity_points\".\"latitude\" not in ('NaN'::double precision, 'Infinity'::double precision, '-Infinity'::double precision)"
+        },
+        "activity_points_longitude_check": {
+          "name": "activity_points_longitude_check",
+          "value": "\"trail\".\"activity_points\".\"longitude\" between -180 and 180 and \"trail\".\"activity_points\".\"longitude\" not in ('NaN'::double precision, 'Infinity'::double precision, '-Infinity'::double precision)"
+        },
+        "activity_points_elevation_check": {
+          "name": "activity_points_elevation_check",
+          "value": "\"trail\".\"activity_points\".\"elevation_m\" is null or \"trail\".\"activity_points\".\"elevation_m\" not in ('NaN'::double precision, 'Infinity'::double precision, '-Infinity'::double precision)"
+        },
+        "activity_points_accuracy_check": {
+          "name": "activity_points_accuracy_check",
+          "value": "\"trail\".\"activity_points\".\"accuracy_m\" is null or (\"trail\".\"activity_points\".\"accuracy_m\" >= 0 and \"trail\".\"activity_points\".\"accuracy_m\" not in ('NaN'::double precision, 'Infinity'::double precision, '-Infinity'::double precision))"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "trail.activity_splits": {
+      "name": "activity_splits",
+      "schema": "trail",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "activity_id": {
+          "name": "activity_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unit_system": {
+          "name": "unit_system",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "split_index": {
+          "name": "split_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "boundary_distance_m": {
+          "name": "boundary_distance_m",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "distance_m": {
+          "name": "distance_m",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "duration_s": {
+          "name": "duration_s",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "activity_splits_activity_id_idx": {
+          "name": "activity_splits_activity_id_idx",
+          "columns": [
+            {
+              "expression": "activity_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "activity_splits_activity_id_activities_id_fk": {
+          "name": "activity_splits_activity_id_activities_id_fk",
+          "tableFrom": "activity_splits",
+          "tableTo": "activities",
+          "schemaTo": "trail",
+          "columnsFrom": ["activity_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "activity_splits_activity_unit_index_unique": {
+          "name": "activity_splits_activity_unit_index_unique",
+          "nullsNotDistinct": false,
+          "columns": ["activity_id", "unit_system", "split_index"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "activity_splits_unit_system_check": {
+          "name": "activity_splits_unit_system_check",
+          "value": "\"trail\".\"activity_splits\".\"unit_system\" in ('metric', 'imperial')"
+        },
+        "activity_splits_index_check": {
+          "name": "activity_splits_index_check",
+          "value": "\"trail\".\"activity_splits\".\"split_index\" >= 1"
+        },
+        "activity_splits_boundary_check": {
+          "name": "activity_splits_boundary_check",
+          "value": "\"trail\".\"activity_splits\".\"boundary_distance_m\" > 0 and \"trail\".\"activity_splits\".\"boundary_distance_m\" not in ('NaN'::double precision, 'Infinity'::double precision, '-Infinity'::double precision)"
+        },
+        "activity_splits_distance_check": {
+          "name": "activity_splits_distance_check",
+          "value": "\"trail\".\"activity_splits\".\"distance_m\" > 0 and \"trail\".\"activity_splits\".\"distance_m\" not in ('NaN'::double precision, 'Infinity'::double precision, '-Infinity'::double precision)"
+        },
+        "activity_splits_duration_check": {
+          "name": "activity_splits_duration_check",
+          "value": "\"trail\".\"activity_splits\".\"duration_s\" >= 0 and \"trail\".\"activity_splits\".\"duration_s\" not in ('NaN'::double precision, 'Infinity'::double precision, '-Infinity'::double precision)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "trail.auth_identities": {
+      "name": "auth_identities",
+      "schema": "trail",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider": {
+          "name": "provider",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider_subject": {
+          "name": "provider_subject",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "auth_identities_user_id_idx": {
+          "name": "auth_identities_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "auth_identities_user_id_users_id_fk": {
+          "name": "auth_identities_user_id_users_id_fk",
+          "tableFrom": "auth_identities",
+          "tableTo": "users",
+          "schemaTo": "trail",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "auth_identities_provider_subject_unique": {
+          "name": "auth_identities_provider_subject_unique",
+          "nullsNotDistinct": false,
+          "columns": ["provider", "provider_subject"]
+        },
+        "auth_identities_user_provider_unique": {
+          "name": "auth_identities_user_provider_unique",
+          "nullsNotDistinct": false,
+          "columns": ["user_id", "provider"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "auth_identities_provider_check": {
+          "name": "auth_identities_provider_check",
+          "value": "\"trail\".\"auth_identities\".\"provider\" in ('password', 'apple', 'google')"
+        },
+        "auth_identities_subject_length_check": {
+          "name": "auth_identities_subject_length_check",
+          "value": "length(\"trail\".\"auth_identities\".\"provider_subject\") between 1 and 2048"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "trail.object_deletion_outbox": {
+      "name": "object_deletion_outbox",
+      "schema": "trail",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "owner_user_id": {
+          "name": "owner_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_activity_id": {
+          "name": "source_activity_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_photo_id": {
+          "name": "source_photo_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "object_key": {
+          "name": "object_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "attempt_count": {
+          "name": "attempt_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "next_attempt_at": {
+          "name": "next_attempt_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_error_code": {
+          "name": "last_error_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "object_deletion_outbox_pending_idx": {
+          "name": "object_deletion_outbox_pending_idx",
+          "columns": [
+            {
+              "expression": "next_attempt_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"trail\".\"object_deletion_outbox\".\"status\" in ('pending', 'retry')",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "object_deletion_outbox_owner_user_id_idx": {
+          "name": "object_deletion_outbox_owner_user_id_idx",
+          "columns": [
+            {
+              "expression": "owner_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "object_deletion_outbox_object_key_unique": {
+          "name": "object_deletion_outbox_object_key_unique",
+          "nullsNotDistinct": false,
+          "columns": ["object_key"]
+        },
+        "object_deletion_outbox_source_photo_unique": {
+          "name": "object_deletion_outbox_source_photo_unique",
+          "nullsNotDistinct": false,
+          "columns": ["source_photo_id"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "object_deletion_outbox_object_key_owner_check": {
+          "name": "object_deletion_outbox_object_key_owner_check",
+          "value": "length(\"trail\".\"object_deletion_outbox\".\"object_key\") <= 1024 and \"trail\".\"object_deletion_outbox\".\"object_key\" = 'users/' || \"trail\".\"object_deletion_outbox\".\"owner_user_id\"::text || '/activities/' || \"trail\".\"object_deletion_outbox\".\"source_activity_id\"::text || '/photos/' || \"trail\".\"object_deletion_outbox\".\"source_photo_id\"::text"
+        },
+        "object_deletion_outbox_status_check": {
+          "name": "object_deletion_outbox_status_check",
+          "value": "\"trail\".\"object_deletion_outbox\".\"status\" in ('pending', 'retry', 'completed')"
+        },
+        "object_deletion_outbox_attempt_count_check": {
+          "name": "object_deletion_outbox_attempt_count_check",
+          "value": "\"trail\".\"object_deletion_outbox\".\"attempt_count\" between 0 and 2147483647"
+        },
+        "object_deletion_outbox_error_code_check": {
+          "name": "object_deletion_outbox_error_code_check",
+          "value": "\"trail\".\"object_deletion_outbox\".\"last_error_code\" is null or (length(\"trail\".\"object_deletion_outbox\".\"last_error_code\") between 1 and 100 and \"trail\".\"object_deletion_outbox\".\"last_error_code\" ~ '^[a-z0-9_]+$')"
+        },
+        "object_deletion_outbox_completion_check": {
+          "name": "object_deletion_outbox_completion_check",
+          "value": "(\"trail\".\"object_deletion_outbox\".\"status\" = 'completed') = (\"trail\".\"object_deletion_outbox\".\"completed_at\" is not null)"
+        },
+        "object_deletion_outbox_updated_at_check": {
+          "name": "object_deletion_outbox_updated_at_check",
+          "value": "\"trail\".\"object_deletion_outbox\".\"updated_at\" >= \"trail\".\"object_deletion_outbox\".\"created_at\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "trail.refresh_token_families": {
+      "name": "refresh_token_families",
+      "schema": "trail",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "device_hint": {
+          "name": "device_hint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "refresh_token_families_user_id_idx": {
+          "name": "refresh_token_families_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "refresh_token_families_user_id_users_id_fk": {
+          "name": "refresh_token_families_user_id_users_id_fk",
+          "tableFrom": "refresh_token_families",
+          "tableTo": "users",
+          "schemaTo": "trail",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "refresh_token_families_expiry_check": {
+          "name": "refresh_token_families_expiry_check",
+          "value": "\"trail\".\"refresh_token_families\".\"expires_at\" > \"trail\".\"refresh_token_families\".\"created_at\""
+        },
+        "refresh_token_families_revocation_check": {
+          "name": "refresh_token_families_revocation_check",
+          "value": "\"trail\".\"refresh_token_families\".\"revoked_at\" is null or \"trail\".\"refresh_token_families\".\"revoked_at\" >= \"trail\".\"refresh_token_families\".\"created_at\""
+        },
+        "refresh_token_families_device_hint_check": {
+          "name": "refresh_token_families_device_hint_check",
+          "value": "\"trail\".\"refresh_token_families\".\"device_hint\" is null or length(trim(\"trail\".\"refresh_token_families\".\"device_hint\")) between 1 and 200"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "trail.refresh_tokens": {
+      "name": "refresh_tokens",
+      "schema": "trail",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "family_id": {
+          "name": "family_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sequence": {
+          "name": "sequence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token_hash": {
+          "name": "token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "consumed_at": {
+          "name": "consumed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "refresh_tokens_family_id_idx": {
+          "name": "refresh_tokens_family_id_idx",
+          "columns": [
+            {
+              "expression": "family_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "refresh_tokens_family_id_refresh_token_families_id_fk": {
+          "name": "refresh_tokens_family_id_refresh_token_families_id_fk",
+          "tableFrom": "refresh_tokens",
+          "tableTo": "refresh_token_families",
+          "schemaTo": "trail",
+          "columnsFrom": ["family_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "refresh_tokens_hash_unique": {
+          "name": "refresh_tokens_hash_unique",
+          "nullsNotDistinct": false,
+          "columns": ["token_hash"]
+        },
+        "refresh_tokens_family_sequence_unique": {
+          "name": "refresh_tokens_family_sequence_unique",
+          "nullsNotDistinct": false,
+          "columns": ["family_id", "sequence"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "refresh_tokens_sequence_check": {
+          "name": "refresh_tokens_sequence_check",
+          "value": "\"trail\".\"refresh_tokens\".\"sequence\" >= 0"
+        },
+        "refresh_tokens_hash_format_check": {
+          "name": "refresh_tokens_hash_format_check",
+          "value": "\"trail\".\"refresh_tokens\".\"token_hash\" ~ '^[0-9a-f]{64}$'"
+        },
+        "refresh_tokens_expiry_check": {
+          "name": "refresh_tokens_expiry_check",
+          "value": "\"trail\".\"refresh_tokens\".\"expires_at\" > \"trail\".\"refresh_tokens\".\"created_at\""
+        },
+        "refresh_tokens_consumed_check": {
+          "name": "refresh_tokens_consumed_check",
+          "value": "\"trail\".\"refresh_tokens\".\"consumed_at\" is null or \"trail\".\"refresh_tokens\".\"consumed_at\" >= \"trail\".\"refresh_tokens\".\"created_at\""
+        },
+        "refresh_tokens_revoked_check": {
+          "name": "refresh_tokens_revoked_check",
+          "value": "\"trail\".\"refresh_tokens\".\"revoked_at\" is null or \"trail\".\"refresh_tokens\".\"revoked_at\" >= \"trail\".\"refresh_tokens\".\"created_at\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "trail.routes": {
+      "name": "routes",
+      "schema": "trail",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sport_hint": {
+          "name": "sport_hint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "waypoints": {
+          "name": "waypoints",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "polyline": {
+          "name": "polyline",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "distance_m": {
+          "name": "distance_m",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "elevation_gain_m": {
+          "name": "elevation_gain_m",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "routes_user_created_at_idx": {
+          "name": "routes_user_created_at_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "routes_user_id_users_id_fk": {
+          "name": "routes_user_id_users_id_fk",
+          "tableFrom": "routes",
+          "tableTo": "users",
+          "schemaTo": "trail",
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "routes_id_user_id_unique": {
+          "name": "routes_id_user_id_unique",
+          "nullsNotDistinct": false,
+          "columns": ["id", "user_id"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "routes_name_length_check": {
+          "name": "routes_name_length_check",
+          "value": "length(trim(\"trail\".\"routes\".\"name\")) between 1 and 200"
+        },
+        "routes_sport_hint_check": {
+          "name": "routes_sport_hint_check",
+          "value": "\"trail\".\"routes\".\"sport_hint\" is null or \"trail\".\"routes\".\"sport_hint\" in ('run', 'ride', 'walk', 'hike')"
+        },
+        "routes_waypoints_check": {
+          "name": "routes_waypoints_check",
+          "value": "trail.valid_route_waypoints(\"trail\".\"routes\".\"waypoints\")"
+        },
+        "routes_polyline_length_check": {
+          "name": "routes_polyline_length_check",
+          "value": "length(\"trail\".\"routes\".\"polyline\") between 1 and 1000000"
+        },
+        "routes_distance_check": {
+          "name": "routes_distance_check",
+          "value": "\"trail\".\"routes\".\"distance_m\" >= 0 and \"trail\".\"routes\".\"distance_m\" not in ('NaN'::double precision, 'Infinity'::double precision, '-Infinity'::double precision)"
+        },
+        "routes_elevation_gain_check": {
+          "name": "routes_elevation_gain_check",
+          "value": "\"trail\".\"routes\".\"elevation_gain_m\" is null or (\"trail\".\"routes\".\"elevation_gain_m\" >= 0 and \"trail\".\"routes\".\"elevation_gain_m\" not in ('NaN'::double precision, 'Infinity'::double precision, '-Infinity'::double precision))"
+        },
+        "routes_updated_at_check": {
+          "name": "routes_updated_at_check",
+          "value": "\"trail\".\"routes\".\"updated_at\" >= \"trail\".\"routes\".\"created_at\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "trail.users": {
+      "name": "users",
+      "schema": "trail",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "password_hash": {
+          "name": "password_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "avatar_url": {
+          "name": "avatar_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "units": {
+          "name": "units",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'metric'"
+        },
+        "default_sport": {
+          "name": "default_sport",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'run'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "users_email_normalized_unique": {
+          "name": "users_email_normalized_unique",
+          "columns": [
+            {
+              "expression": "lower(\"email\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"trail\".\"users\".\"email\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "users_email_length_check": {
+          "name": "users_email_length_check",
+          "value": "\"trail\".\"users\".\"email\" is null or length(trim(\"trail\".\"users\".\"email\")) between 1 and 320"
+        },
+        "users_password_hash_format_check": {
+          "name": "users_password_hash_format_check",
+          "value": "\"trail\".\"users\".\"password_hash\" is null or (length(\"trail\".\"users\".\"password_hash\") <= 512 and (\"trail\".\"users\".\"password_hash\" ~ '^\\$argon2id\\$v=19\\$m=[0-9]+,t=[0-9]+,p=[0-9]+\\$[A-Za-z0-9+/]+={0,2}\\$[A-Za-z0-9+/]+={0,2}$' or \"trail\".\"users\".\"password_hash\" ~ '^\\$2[aby]\\$[0-9]{2}\\$[./A-Za-z0-9]{53}$'))"
+        },
+        "users_display_name_length_check": {
+          "name": "users_display_name_length_check",
+          "value": "length(trim(\"trail\".\"users\".\"display_name\")) between 1 and 100"
+        },
+        "users_avatar_url_length_check": {
+          "name": "users_avatar_url_length_check",
+          "value": "\"trail\".\"users\".\"avatar_url\" is null or length(\"trail\".\"users\".\"avatar_url\") between 1 and 2048"
+        },
+        "users_units_check": {
+          "name": "users_units_check",
+          "value": "\"trail\".\"users\".\"units\" in ('metric', 'imperial')"
+        },
+        "users_default_sport_check": {
+          "name": "users_default_sport_check",
+          "value": "\"trail\".\"users\".\"default_sport\" in ('run', 'ride', 'walk', 'hike')"
+        },
+        "users_updated_at_check": {
+          "name": "users_updated_at_check",
+          "value": "\"trail\".\"users\".\"updated_at\" >= \"trail\".\"users\".\"created_at\""
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {
+    "trail": "trail"
+  },
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

@@ -1,3 +1,11 @@
+import type { ElevationProvider } from '@trail/domain';
+
+export type {
+  ElevationProvider,
+  ElevationProviderRequest,
+  ElevationProviderResult,
+} from '@trail/domain';
+
 export type DependencyStatus = 'up' | 'down' | 'disabled';
 
 export interface HealthCheckable {
@@ -21,16 +29,6 @@ export interface EmailProvider extends HealthCheckable {
 
 export interface MapStyleProvider {
   readonly styleUrl: string;
-}
-
-export interface ElevationPoint {
-  readonly latitude: number;
-  readonly longitude: number;
-  readonly elevationMetres?: number;
-}
-
-export interface ElevationProvider {
-  enrich(points: readonly ElevationPoint[]): Promise<readonly ElevationPoint[]>;
 }
 
 export interface RoutingProvider {

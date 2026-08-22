@@ -3,12 +3,7 @@ import nodemailer from 'nodemailer';
 import postgres from 'postgres';
 import type { ApiConfig } from '../config.js';
 import { ApplicationError } from '../http/application-error.js';
-import type {
-  DependencyStatus,
-  ElevationPoint,
-  EmailMessage,
-  Providers,
-} from './ports.js';
+import type { DependencyStatus, EmailMessage, Providers } from './ports.js';
 
 export function createLocalProviders(config: ApiConfig): Providers {
   const sql = postgres(config.DATABASE_URL, {
@@ -93,10 +88,8 @@ export function createLocalProviders(config: ApiConfig): Providers {
     },
     mapStyle: { styleUrl: config.MAP_STYLE_URL },
     elevation: {
-      async enrich(
-        points: readonly ElevationPoint[],
-      ): Promise<readonly ElevationPoint[]> {
-        return points;
+      async getElevations({ points }) {
+        return { elevationsM: points.map(() => null) };
       },
     },
     routing: {
