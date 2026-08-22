@@ -48,5 +48,6 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+      - run: pnpm --filter @trail/mobile test:coverage
       - run: pnpm build
       - run: docker compose -f infra/compose.yaml config --quiet

@@ -11,8 +11,14 @@ export function createTestProviders(
     return status;
   };
 
+  const unavailableIdentity = {
+    enabled: false,
+    verify: async () => Promise.reject(new Error('Identity provider disabled')),
+  };
+
   return {
     database: { checkHealth },
+    identity: { apple: unavailableIdentity, google: unavailableIdentity },
     objectStorage: { bucket: 'test-private', checkHealth },
     email: {
       enabled: options.emailEnabled ?? false,

@@ -1,3 +1,4 @@
+import type { ErrorEnvelope } from '@trail/contracts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { ApplicationError } from '../src/http/application-error.js';
@@ -79,6 +80,92 @@ describe('platform endpoints', () => {
     await new Promise((resolve) => setTimeout(resolve, 2));
     await app.inject({ method: 'GET', url: '/ready' });
     expect(databaseCheck).toHaveBeenCalledTimes(2);
+  });
+
+  it('limits auth requests and body size while leaving unconfigured SSO routes disabled', async () => {
+    const baseProviders = createTestProviders();
+    const configuredButBlockedVerifier = {
+      enabled: true,
+      verify: async () => Promise.reject(new Error('must not be called')),
+    };
+    const app = buildApp({
+      config: { ...testConfig, BODY_LIMIT_BYTES: 1024 },
+      providers: {
+        ...baseProviders,
+        identity: {
+          apple: configuredButBlockedVerifier,
+          google: configuredButBlockedVerifier,
+        },
+      },
+    });
+    apps.push(app);
+    await app.ready();
+
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/v1/auth/login',
+        payload: {
+          email: `random-${attempt}@example.com`,
+          password: 'password',
+        },
+      });
+      expect(response.statusCode).toBe(503);
+    }
+    const limited = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/login',
+      payload: { email: 'another-random@example.com', password: 'password' },
+    });
+    expect(limited.statusCode).toBe(429);
+    expect(limited.json<ErrorEnvelope>().error.code).toBe('rate_limited');
+    const oversized = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/register',
+      payload: {
+        email: 'other@example.com',
+        password: 'x'.repeat(2000),
+        display_name: 'Other',
+      },
+    });
+    expect(oversized.statusCode).toBe(413);
+    expect(oversized.json<ErrorEnvelope>().error.code).toBe('invalid_request');
+    expect(
+      (
+        await app.inject({
+          method: 'POST',
+          url: '/v1/auth/google',
+          payload: {},
+        })
+      ).statusCode,
+    ).toBe(404);
+
+    const identityLimitedApp = buildApp({
+      config: testConfig,
+      providers: createTestProviders(),
+    });
+    apps.push(identityLimitedApp);
+    await identityLimitedApp.ready();
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      expect(
+        (
+          await identityLimitedApp.inject({
+            method: 'POST',
+            url: '/v1/auth/login',
+            payload: { email: 'same@example.com', password: 'password' },
+          })
+        ).statusCode,
+      ).toBe(503);
+    }
+    expect(
+      (
+        await identityLimitedApp.inject({
+          method: 'POST',
+          url: '/v1/auth/login',
+          payload: { email: 'SAME@example.com', password: 'password' },
+        })
+      ).statusCode,
+    ).toBe(429);
   });
 
   it('uses the standard error envelope for unknown routes', async () => {

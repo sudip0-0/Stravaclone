@@ -10,6 +10,10 @@ const optionalString = z.preprocess(
   (value) => (value === '' ? undefined : value),
   z.string().min(1).optional(),
 );
+const base64UrlKey = z
+  .string()
+  .regex(/^[A-Za-z0-9_-]{43}$/)
+  .refine((value) => Buffer.from(value, 'base64url').length === 32);
 const optionalEmail = z.preprocess(
   (value) => (value === '' ? undefined : value),
   z.email().optional(),
@@ -81,6 +85,20 @@ const envSchema = z
     SMTP_PASSWORD: optionalString,
     SMTP_FROM: optionalEmail,
     MAP_STYLE_URL: z.url(),
+    JWT_SIGNING_KEY: base64UrlKey,
+    EMAIL_OUTBOX_KEY: base64UrlKey,
+    REFRESH_RECOVERY_KEY: base64UrlKey,
+    JWT_ISSUER: z.string().min(1).default('trail-api'),
+    JWT_AUDIENCE: z.string().min(1).default('trail-mobile'),
+    APPLE_CLIENT_ID: optionalString,
+    GOOGLE_CLIENT_ID: optionalString,
+    TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(3).default(0),
+    BODY_LIMIT_BYTES: z.coerce
+      .number()
+      .int()
+      .min(1024)
+      .max(1_048_576)
+      .default(32_768),
     READINESS_TIMEOUT_MS: z.coerce
       .number()
       .int()
@@ -112,6 +130,21 @@ const envSchema = z
           addIssue(context, field, `${field} is required in SMTP mode`);
       }
     }
+    if (
+      new Set([
+        env.JWT_SIGNING_KEY,
+        env.EMAIL_OUTBOX_KEY,
+        env.REFRESH_RECOVERY_KEY,
+      ]).size !== 3
+    ) {
+      for (const field of [
+        'JWT_SIGNING_KEY',
+        'EMAIL_OUTBOX_KEY',
+        'REFRESH_RECOVERY_KEY',
+      ] as const) {
+        addIssue(context, field, 'Security keys must be distinct');
+      }
+    }
     if (env.OTEL_ENABLED && !env.OTEL_EXPORTER_OTLP_ENDPOINT) {
       addIssue(
         context,
@@ -121,6 +154,14 @@ const envSchema = z
     }
 
     if (env.NODE_ENV !== 'production') return;
+
+    if (env.TRUST_PROXY_HOPS < 1) {
+      addIssue(
+        context,
+        'TRUST_PROXY_HOPS',
+        'Production requires the validated Koyeb proxy hop count',
+      );
+    }
 
     const databaseUrl = new URL(env.DATABASE_URL);
     if (isLocalHost(databaseUrl.hostname))

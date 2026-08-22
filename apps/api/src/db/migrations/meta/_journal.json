@@ -15,6 +15,13 @@
       "when": 1787361309114,
       "tag": "0001_phase1_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787368625638,
+      "tag": "0002_phase2_auth",
+      "breakpoints": true
     }
   ]
 }

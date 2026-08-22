@@ -4,6 +4,7 @@ import Fastify, {
   type FastifyServerOptions,
 } from 'fastify';
 import type { ErrorCode, ErrorEnvelope } from '@trail/contracts';
+import { registerAuthRoutes } from './auth/routes.js';
 import type { ApiConfig } from './config.js';
 import { ApplicationError } from './http/application-error.js';
 import type { DependencyStatus, Providers } from './providers/ports.js';
@@ -53,6 +54,8 @@ export function createLoggerOptions(
         'req.body.password',
         'req.body.token',
         'req.body.refresh_token',
+        'req.body.rotation_request_id',
+        'req.body.identity_token',
         'req.body.signed_url',
         'res.headers["set-cookie"]',
         'authorization',
@@ -60,8 +63,24 @@ export function createLoggerOptions(
         'password',
         'token',
         'refresh_token',
+        'rotation_request_id',
+        'identity_token',
+        'token_hash',
+        'ciphertext',
+        'payload_ciphertext',
+        'successor_ciphertext',
+        'iv',
+        'payload_iv',
+        'successor_iv',
+        'tag',
+        'payload_tag',
+        'successor_tag',
+        'password_hash',
         'signed_url',
         'smtp_password',
+        'jwt_signing_key',
+        'email_outbox_key',
+        'refresh_recovery_key',
         'object_storage_secret_key',
       ],
       censor: '[REDACTED]',
@@ -71,6 +90,13 @@ export function createLoggerOptions(
 
 function errorEnvelope(code: ErrorCode, message: string): ErrorEnvelope {
   return { error: { code, message } };
+}
+
+function httpStatus(error: unknown): number | undefined {
+  if (typeof error !== 'object' || error === null || !('statusCode' in error)) {
+    return undefined;
+  }
+  return typeof error.statusCode === 'number' ? error.statusCode : undefined;
 }
 
 function isValidationError(error: unknown): error is { validation: unknown } {
@@ -125,7 +151,13 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
         : randomUUID();
     },
     logger,
+    bodyLimit: options.config.BODY_LIMIT_BYTES,
+    trustProxy:
+      options.config.TRUST_PROXY_HOPS === 0
+        ? false
+        : options.config.TRUST_PROXY_HOPS,
   });
+  registerAuthRoutes(app, options.config, options.providers);
   let readinessCache:
     | { readonly checkedAt: number; readonly ready: boolean }
     | undefined;
@@ -204,14 +236,33 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
       statusCode = error.statusCode;
       code = error.code;
       message = error.publicMessage;
-    } else if (isValidationError(error)) {
-      statusCode = 400;
+    } else if (httpStatus(error) === 429) {
+      statusCode = 429;
+      code = 'rate_limited';
+      message = 'Too many requests';
+    } else if (httpStatus(error) === 413 || isValidationError(error)) {
+      statusCode = httpStatus(error) === 413 ? 413 : 400;
       code = 'invalid_request';
       message = 'Request validation failed';
     }
 
     if (statusCode >= 500) {
-      request.log.error({ code }, 'Request failed');
+      request.log.error(
+        {
+          code,
+          internalCode:
+            typeof error === 'object' && error !== null && 'code' in error
+              ? error.code
+              : undefined,
+          constraint:
+            typeof error === 'object' &&
+            error !== null &&
+            'constraint_name' in error
+              ? error.constraint_name
+              : undefined,
+        },
+        'Request failed',
+      );
       options.providers.telemetry.captureException({
         code,
         requestId: request.id,

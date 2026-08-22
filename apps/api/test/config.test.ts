@@ -12,6 +12,7 @@ const productionEnvironment = {
   OBJECT_STORAGE_ACCESS_KEY: 'AKIA123456789',
   OBJECT_STORAGE_SECRET_KEY: 'strong-production-value-123',
   MAP_STYLE_URL: 'https://tiles.provider.invalid/style.json',
+  TRUST_PROXY_HOPS: '1',
 };
 
 describe('API environment', () => {
@@ -45,6 +46,18 @@ describe('API environment', () => {
     } catch (error) {
       expect(String(error)).not.toContain(secret);
     }
+  });
+
+  it('requires distinct canonical 32-byte base64url security keys', () => {
+    expect(() =>
+      parseConfig({ ...validEnvironment, JWT_SIGNING_KEY: 'not-base64url' }),
+    ).toThrow('JWT_SIGNING_KEY');
+    expect(() =>
+      parseConfig({
+        ...validEnvironment,
+        EMAIL_OUTBOX_KEY: validEnvironment.JWT_SIGNING_KEY,
+      }),
+    ).toThrow(/JWT_SIGNING_KEY.*EMAIL_OUTBOX_KEY.*REFRESH_RECOVERY_KEY/);
   });
 
   it('requires matching explicit email mode and provider', () => {

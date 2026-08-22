@@ -5,6 +5,7 @@
     "version": "0.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
+    "plugins": ["expo-secure-store", "expo-status-bar", "expo-font"],
     "ios": {
       "bundleIdentifier": "com.trailapp.mobile",
       "supportsTablet": true

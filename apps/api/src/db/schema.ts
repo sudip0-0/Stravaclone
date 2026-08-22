@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  boolean,
   check,
   doublePrecision,
   foreignKey,
@@ -29,6 +30,7 @@ export const users = trailSchema.table(
     avatarUrl: text('avatar_url'),
     units: text('units').notNull().default('metric'),
     defaultSport: text('default_sport').notNull().default('run'),
+    authVersion: integer('auth_version').notNull().default(0),
     createdAt: utcTimestamp('created_at').defaultNow().notNull(),
     updatedAt: utcTimestamp('updated_at').defaultNow().notNull(),
   },
@@ -57,6 +59,7 @@ export const users = trailSchema.table(
       'users_default_sport_check',
       sql`${table.defaultSport} in ('run', 'ride', 'walk', 'hike')`,
     ),
+    check('users_auth_version_check', sql`${table.authVersion} >= 0`),
     check(
       'users_updated_at_check',
       sql`${table.updatedAt} >= ${table.createdAt}`,
@@ -137,6 +140,11 @@ export const refreshTokens = trailSchema.table(
     expiresAt: utcTimestamp('expires_at').notNull(),
     consumedAt: utcTimestamp('consumed_at'),
     revokedAt: utcTimestamp('revoked_at'),
+    rotationRequestHash: text('rotation_request_hash'),
+    successorCiphertext: text('successor_ciphertext'),
+    successorIv: text('successor_iv'),
+    successorTag: text('successor_tag'),
+    successorTokenId: uuid('successor_token_id'),
     createdAt: utcTimestamp('created_at').defaultNow().notNull(),
   },
   (table) => [
@@ -146,10 +154,24 @@ export const refreshTokens = trailSchema.table(
       table.sequence,
     ),
     index('refresh_tokens_family_id_idx').on(table.familyId),
+    unique('refresh_tokens_successor_token_unique').on(table.successorTokenId),
+    foreignKey({
+      name: 'refresh_tokens_successor_token_id_fk',
+      columns: [table.successorTokenId],
+      foreignColumns: [table.id],
+    }),
     check('refresh_tokens_sequence_check', sql`${table.sequence} >= 0`),
     check(
       'refresh_tokens_hash_format_check',
       sql`${table.tokenHash} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      'refresh_tokens_rotation_hash_format_check',
+      sql`${table.rotationRequestHash} is null or ${table.rotationRequestHash} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      'refresh_tokens_recovery_bundle_check',
+      sql`(${table.rotationRequestHash} is null and ${table.successorCiphertext} is null and ${table.successorIv} is null and ${table.successorTag} is null and ${table.successorTokenId} is null) or (${table.rotationRequestHash} is not null and ${table.successorCiphertext} is not null and ${table.successorIv} is not null and ${table.successorTag} is not null and ${table.successorTokenId} is not null)`,
     ),
     check(
       'refresh_tokens_expiry_check',
@@ -162,6 +184,128 @@ export const refreshTokens = trailSchema.table(
     check(
       'refresh_tokens_revoked_check',
       sql`${table.revokedAt} is null or ${table.revokedAt} >= ${table.createdAt}`,
+    ),
+  ],
+);
+
+export const passwordResetTokens = trailSchema.table(
+  'password_reset_tokens',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    tokenHash: text('token_hash').notNull(),
+    expiresAt: utcTimestamp('expires_at').notNull(),
+    consumedAt: utcTimestamp('consumed_at'),
+    createdAt: utcTimestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    unique('password_reset_tokens_hash_unique').on(table.tokenHash),
+    index('password_reset_tokens_user_id_idx').on(table.userId),
+    index('password_reset_tokens_expiry_idx')
+      .on(table.expiresAt)
+      .where(sql`${table.consumedAt} is null`),
+    check(
+      'password_reset_tokens_hash_format_check',
+      sql`${table.tokenHash} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      'password_reset_tokens_expiry_check',
+      sql`${table.expiresAt} > ${table.createdAt}`,
+    ),
+    check(
+      'password_reset_tokens_consumed_check',
+      sql`${table.consumedAt} is null or ${table.consumedAt} >= ${table.createdAt}`,
+    ),
+  ],
+);
+
+export const registrationVerifications = trailSchema.table(
+  'registration_verifications',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    email: text('email').notNull(),
+    passwordHash: text('password_hash').notNull(),
+    displayName: text('display_name').notNull(),
+    tokenHash: text('token_hash').notNull(),
+    expiresAt: utcTimestamp('expires_at').notNull(),
+    consumedAt: utcTimestamp('consumed_at'),
+    createdAt: utcTimestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    unique('registration_verifications_token_hash_unique').on(table.tokenHash),
+    index('registration_verifications_email_idx').on(table.email),
+    check(
+      'registration_verifications_email_check',
+      sql`length(trim(${table.email})) between 1 and 320 and ${table.email} = lower(${table.email})`,
+    ),
+    check(
+      'registration_verifications_password_hash_check',
+      sql`${table.passwordHash} ~ '^\\$argon2id\\$v=19\\$m=[0-9]+,t=[0-9]+,p=[0-9]+\\$[A-Za-z0-9+/]+={0,2}\\$[A-Za-z0-9+/]+={0,2}$'`,
+    ),
+    check(
+      'registration_verifications_display_name_check',
+      sql`length(trim(${table.displayName})) between 1 and 100`,
+    ),
+    check(
+      'registration_verifications_token_hash_check',
+      sql`${table.tokenHash} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      'registration_verifications_expiry_check',
+      sql`${table.expiresAt} > ${table.createdAt}`,
+    ),
+  ],
+);
+
+export const emailOutbox = trailSchema.table(
+  'email_outbox',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    resetTokenId: uuid('reset_token_id').references(
+      () => passwordResetTokens.id,
+      { onDelete: 'cascade' },
+    ),
+    registrationVerificationId: uuid('registration_verification_id'),
+    purpose: text('purpose').notNull(),
+    shouldDeliver: boolean('should_deliver').notNull(),
+    payloadCiphertext: text('payload_ciphertext').notNull(),
+    payloadIv: text('payload_iv').notNull(),
+    payloadTag: text('payload_tag').notNull(),
+    status: text('status').notNull().default('pending'),
+    attemptCount: integer('attempt_count').notNull().default(0),
+    nextAttemptAt: utcTimestamp('next_attempt_at').defaultNow().notNull(),
+    deliveredAt: utcTimestamp('delivered_at'),
+    lastErrorCode: text('last_error_code'),
+    createdAt: utcTimestamp('created_at').defaultNow().notNull(),
+    updatedAt: utcTimestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      name: 'email_outbox_registration_verification_fk',
+      columns: [table.registrationVerificationId],
+      foreignColumns: [registrationVerifications.id],
+    }).onDelete('cascade'),
+    index('email_outbox_pending_idx')
+      .on(table.nextAttemptAt)
+      .where(sql`${table.status} = 'pending'`),
+    check(
+      'email_outbox_status_check',
+      sql`${table.status} in ('pending', 'delivered', 'dead')`,
+    ),
+    check(
+      'email_outbox_purpose_check',
+      sql`${table.purpose} in ('registration', 'password_reset', 'tombstone')`,
+    ),
+    check(
+      'email_outbox_attempt_count_check',
+      sql`${table.attemptCount} between 0 and 5`,
+    ),
+    check(
+      'email_outbox_delivery_shape_check',
+      sql`(${table.shouldDeliver} and ${table.purpose} = 'password_reset' and ${table.userId} is not null and ${table.resetTokenId} is not null and ${table.registrationVerificationId} is null) or (${table.shouldDeliver} and ${table.purpose} = 'registration' and ${table.userId} is null and ${table.resetTokenId} is null and ${table.registrationVerificationId} is not null) or (not ${table.shouldDeliver} and ${table.purpose} = 'tombstone' and ${table.userId} is null and ${table.resetTokenId} is null and ${table.registrationVerificationId} is null)`,
     ),
   ],
 );

@@ -55,7 +55,7 @@ packages/
 infra/                         local compose and deployment definitions
 ```
 
-This is a target, not current repository state. Bootstrap uses **Node.js 22** and **pnpm workspaces**. The mobile app targets **Expo SDK 56** and the React Native version selected by that Expo SDK; do not pin or upgrade React Native independently. The API is a **Fastify** modular monolith. **Zod** is the single boundary-validation system for shared contracts and environment variables, **Drizzle ORM** owns the Postgres schema and migrations, and **Vitest** is the unit/integration test runner. **ESLint** and **Prettier** are required workspace checks.
+This is a target, not current repository state. Bootstrap uses **Node.js 22** and **pnpm workspaces**. The mobile app targets **Expo SDK 57** and the React Native version selected by that Expo SDK; do not pin or upgrade React Native independently. The API is a **Fastify** modular monolith. **Zod** is the single boundary-validation system for shared contracts and environment variables, **Drizzle ORM** owns the Postgres schema and migrations, and **Vitest** is the unit/integration test runner. **ESLint** and **Prettier** are required workspace checks.
 
 ## 4. Mobile architecture
 
@@ -162,12 +162,16 @@ List endpoints use cursor pagination with deterministic ordering. Every resource
 
 ### 5.3 Authentication
 
-- Passwords are at least eight characters and hashed with Argon2id (preferred) or bcrypt using reviewed parameters.
-- Access JWT lifetime is **15 minutes**. Refresh tokens expire after **30 days**, are opaque and random, and are hashed at rest, device-scoped, and rotated on every use.
-- Refresh tokens belong to a token family. Reuse of an already-rotated token revokes the entire family and requires reauthentication on that device.
-- Apple/Google identity tokens are verified server-side for issuer, audience, signature, expiry, nonce/state where applicable, and provider subject.
-- Identity linking requires verified provider evidence. Matching email alone must not silently link an unverified identity.
-- Auth endpoints are rate-limited and account-not-found behavior does not enable enumeration.
+- Passwords are at least eight characters and use the maintained native `@node-rs/argon2` Argon2id implementation with 64 MiB memory, three iterations, one lane, and bounded process concurrency/queueing.
+- Access JWTs live for **15 minutes**, carry `auth_version`, use only HS256, and require exact issuer/audience. `JWT_SIGNING_KEY` is exactly 32 random bytes encoded as base64url. Rotation deploys a verification overlap before changing the active signer; the current single-key implementation requires coordinated session invalidation when replaced.
+- Refresh tokens expire after **30 days**, are opaque, random, SHA-256 hashed at rest, device-family scoped, and rotated. A client-stable `rotation_request_id` maps the consumed predecessor to its AES-256-GCM-encrypted successor. Same-ID recovery remains available while that successor is unconsumed, unexpired, and unrevoked; consuming the successor clears predecessor recovery fields transactionally. Any different-ID old-token use revokes the family. Expired/revoked successor cleanup also clears recovery fields.
+- `REFRESH_RECOVERY_KEY` is a distinct 32-byte key. It must remain available while any encrypted successor row exists; key retirement requires draining/clearing those rows or a versioned re-encryption migration. No plaintext successor is stored.
+- Logout increments `auth_version` only when it newly revokes an active family, making replay idempotent. Password reset increments `auth_version`; middleware checks the current database version so prior access JWTs fail immediately.
+- Password-reset requests perform one foreground database statement for known and unknown accounts and enqueue encrypted delivery/tombstone work. `EMAIL_OUTBOX_KEY` encrypts recipient/token payloads with AES-256-GCM; the worker retries at most five times. Email contains a pasteable token, not a URL. Confirmation returns documented `204 No Content`. Outbox-key retirement must wait for the 24-hour delivered/dead purge or use versioned re-encryption; unknown tombstones are deleted immediately when processed.
+- Registration is email-verified and non-enumerating: initial requests always return identical `202 accepted`; new addresses store only normalized email, Argon2id hash, display name, and a hashed one-use verification token, while existing addresses perform encrypted tombstone work. `/v1/auth/register/confirm` atomically creates the user/password identity and session and never overwrites an existing account.
+- Auth endpoints apply independent validated-IP and normalized identity/token-hash limits, plus bounded global and endpoint Argon2 queues. Koyeb production trusts exactly the configured proxy hop count. All limiter state is process-local for the single free instance and must move to a shared bounded store before horizontal scaling.
+- Apple/Google JOSE/JWKS verifier interfaces remain non-routable. Sign-in and linking routes are intentionally absent even when client IDs exist until server-owned one-use state, nonce, PKCE, native callback setup, real provider evidence, and recent step-up for linking are implemented. Canonical issuers/JWKS are pinned and multi-audience tokens require matching `azp`.
+- Account deletion requires current password proof and conditional deletion against the authenticated `auth_version` and observed password hash. Wrong proof is stable `403 step_up_failed`; independent per-IP and per-user attempt limits apply. SSO-only deletion is blocked with `step_up_required` until provider step-up exists.
 
 ### 5.4 Activity ingestion
 
@@ -181,9 +185,11 @@ Use Postgres UUIDs and `timestamptz`. Store instants in UTC. Store distance/elev
 
 ### 6.1 Core tables
 
-- `users`: email, password hash, display name, avatar, units, default sport, timestamps.
-- `auth_identities`: provider, provider subject, user ID; unique by provider/subject.
-- `refresh_tokens`: token hash, family, user, expiry, revocation, device hint.
+- `users`: email, password hash, display name, avatar, units, default sport, auth version, timestamps.
+- `auth_identities`: provider, provider subject, user ID; unique by provider/subject. Provider writes are blocked while SSO/linking is non-routable.
+- `refresh_tokens`: token hash, family, expiry/revocation, rotation-request hash, successor-token relation, and AES-GCM encrypted successor recovery fields.
+- `registration_verifications`: normalized email, Argon2id password hash, display name, one-use verification-token hash, expiry/consumption.
+- `password_reset_tokens` and `email_outbox`: one-use token hashes plus encrypted bounded-retry registration/reset delivery and tombstone work. Tombstones are deleted when processed; delivered/dead rows and expired token records are purged after 24 hours.
 - `activities`: owner, sport, title/notes, UTC bounds, canonical totals, overview polyline, optional route, timestamps.
 - `activity_points`: activity, sequence, coordinates, elevation, timestamp, accuracy; unique `(activity_id, seq)`.
 - `activity_splits`: activity, unit system/distance boundary, index, distance, duration.
@@ -275,7 +281,7 @@ These are implementation decisions derived from the PRD. Where a PRD SHOULD is c
 | Decision                 | Recorded choice                                                                      | Consequence / status                                                         |
 | ------------------------ | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
 | Runtime/workspace        | Node 22; pnpm workspaces                                                             | Bootstrapped in Phase 0 with pnpm 10.32.1.                                   |
-| Mobile                   | Expo SDK 56; React Native version supplied by Expo                                   | Native compatibility follows Expo.                                           |
+| Mobile                   | Expo SDK 57; React Native version supplied by Expo                                   | Native compatibility follows Expo.                                           |
 | API/contracts/data       | Fastify; Zod contracts and env; Drizzle/Postgres                                     | One modular monolith and one schema source.                                  |
 | Quality tools            | Vitest; ESLint; Prettier                                                             | Required CI gates once bootstrapped.                                         |
 | Local services           | Docker Postgres 17, MinIO, Mailpit                                                   | No hosted dependency for normal local API work.                              |
@@ -302,7 +308,7 @@ These are implementation decisions derived from the PRD. Where a PRD SHOULD is c
 ### External/manual blockers
 
 1. Final brand, domain, legal owner, unique App Store/Play identifiers, and paid store accounts.
-2. Apple/Google OAuth registrations, callback configuration, and approved account-linking policy.
+2. Apple/Google OAuth registrations, callback configuration, and real-device/provider proof. The account-linking policy is approved and implemented, but only fake-verifier and local JWKS evidence exists.
 3. Beta region selection, privacy/terms URLs, and provider account creation/terms review.
 4. Confirmation that free-tier backup facilities meet the daily target; otherwise an external scheduled export and destination.
 5. Real-device background-location evidence and store review approval.

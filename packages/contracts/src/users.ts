@@ -31,3 +31,9 @@ export const updateUserRequestSchema = z
     message: 'At least one field is required',
   });
 export type UpdateUserRequest = z.infer<typeof updateUserRequestSchema>;
+
+export const deleteUserRequestSchema = z.strictObject({
+  confirmation: z.literal('DELETE'),
+  password: z.string().min(1).max(256),
+});
+export type DeleteUserRequest = z.infer<typeof deleteUserRequestSchema>;

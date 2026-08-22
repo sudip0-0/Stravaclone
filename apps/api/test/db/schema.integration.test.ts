@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/postgres-js';
@@ -39,6 +40,16 @@ function postgresErrorCode(error: unknown): string | undefined {
   const candidate = error as { cause?: unknown; code?: unknown };
   if (typeof candidate.code === 'string') return candidate.code;
   return postgresErrorCode(candidate.cause);
+}
+
+async function executeMigrationFile(
+  client: ReturnType<typeof postgres>,
+  filename: string,
+): Promise<void> {
+  const migration = await readFile(`${migrationsFolder}/${filename}`, 'utf8');
+  for (const statement of migration.split('--> statement-breakpoint')) {
+    if (statement.trim()) await client.unsafe(statement);
+  }
 }
 
 async function expectPostgresError(
@@ -109,6 +120,48 @@ describeWithPostgres('Trail PostgreSQL schema', () => {
     }
   }, 30_000);
 
+  it('upgrades committed Phase 1 data through the single final Phase 2 migration', async () => {
+    const upgradeDatabaseName = `trail_phase2_upgrade_${process.pid}_${Date.now()}`;
+    await adminClient.unsafe(`CREATE DATABASE "${upgradeDatabaseName}"`);
+    const upgradeUrl = new URL(baseDatabaseUrl!);
+    upgradeUrl.pathname = `/${upgradeDatabaseName}`;
+    const upgradeClient = postgres(upgradeUrl.toString(), {
+      max: 1,
+      onnotice: () => undefined,
+    });
+    try {
+      await executeMigrationFile(upgradeClient, '0000_foundation.sql');
+      await executeMigrationFile(upgradeClient, '0001_phase1_schema.sql');
+      const phase1Id = '550e8400-e29b-41d4-a716-446655440099';
+      await upgradeClient`
+        insert into trail.users (id, email, display_name)
+        values (${phase1Id}, 'preserved@example.com', 'Preserved')
+      `;
+      await executeMigrationFile(upgradeClient, '0002_phase2_auth.sql');
+      const preserved = await upgradeClient<
+        { email: string; auth_version: number }[]
+      >`
+        select email, auth_version from trail.users where id = ${phase1Id}
+      `;
+      expect(preserved).toEqual([
+        { email: 'preserved@example.com', auth_version: 0 },
+      ]);
+      const tables = await upgradeClient<{ table_name: string }[]>`
+        select table_name from information_schema.tables
+        where table_schema = 'trail'
+          and table_name in ('registration_verifications', 'email_outbox')
+        order by table_name
+      `;
+      expect(tables.map((row) => row.table_name)).toEqual([
+        'email_outbox',
+        'registration_verifications',
+      ]);
+    } finally {
+      await upgradeClient.end();
+      await adminClient.unsafe(`DROP DATABASE "${upgradeDatabaseName}"`);
+    }
+  });
+
   it('applies all forward migrations repeatedly without data loss and exposes client UUID idempotency evidence', async () => {
     await database.insert(users).values(syntheticUser());
     await migrate(database, { migrationsFolder });
@@ -126,7 +179,7 @@ describeWithPostgres('Trail PostgreSQL schema', () => {
       from pg_constraint
       where conrelid = 'trail.activities'::regclass and contype = 'p'
     `;
-    expect(migrationRows[0]?.count).toBe(2);
+    expect(migrationRows[0]?.count).toBe(3);
     expect(activityColumns.map((row) => row.column_name)).toContain('id');
     expect(activityColumns.map((row) => row.column_name)).not.toContain(
       'client_id',

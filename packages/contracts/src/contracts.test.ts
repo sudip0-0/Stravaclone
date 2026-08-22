@@ -27,6 +27,7 @@ import {
   photoUploadRequestSchema,
   readinessResponseSchema,
   refreshSessionRequestSchema,
+  registerConfirmRequestSchema,
   registerRequestSchema,
   routeSchema,
   signedPhotoUploadSchema,
@@ -143,12 +144,25 @@ describe('auth and user contracts', () => {
       loginRequestSchema.safeParse({ email: 'a@b.com', password: 'x' }).success,
     ).toBe(true);
     expect(
-      identityLoginRequestSchema.safeParse({ identity_token: 'verified-token' })
-        .success,
+      registerConfirmRequestSchema.safeParse({
+        token: 'a'.repeat(43),
+      }).success,
     ).toBe(true);
     expect(
-      refreshSessionRequestSchema.safeParse({ refresh_token: 'opaque-token' })
+      identityLoginRequestSchema.safeParse({ identity_token: 'verified-token' })
         .success,
+    ).toBe(false);
+    expect(
+      identityLoginRequestSchema.safeParse({
+        identity_token: 'verified-token',
+        nonce: '0123456789abcdef',
+      }).success,
+    ).toBe(true);
+    expect(
+      refreshSessionRequestSchema.safeParse({
+        refresh_token: 'opaque-token',
+        rotation_request_id: '550e8400-e29b-41d4-a716-446655440000',
+      }).success,
     ).toBe(true);
     expect(
       registerRequestSchema.safeParse({

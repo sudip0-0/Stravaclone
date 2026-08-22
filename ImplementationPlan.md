@@ -18,7 +18,7 @@
 ## 2. Fixed implementation baseline
 
 - Node.js 22 and pnpm workspaces.
-- Expo SDK 56; use the React Native version required by Expo.
+- Expo SDK 57; use the React Native version required by Expo.
 - Fastify Node/TypeScript modular API.
 - Zod for shared wire contracts and environment validation.
 - Drizzle ORM/migrations with Postgres.
@@ -51,7 +51,7 @@ Create a reproducible, production-shaped monorepo foundation without implying th
 
 1. **P0.1 Workspace scaffold — `infrastructure-specialist` lead with `swe-worker` support**
    - Create pnpm workspace packages exactly as defined in `Architecture.md`.
-   - Pin Node 22 and package-manager metadata; bootstrap Expo SDK 56 and Expo-compatible React Native.
+   - Pin Node 22 and package-manager metadata; bootstrap Expo SDK 57 and Expo-compatible React Native.
    - Bootstrap Fastify API and shared `contracts`, `domain`, and `config` packages.
 2. **P0.2 Tooling/CI — `infrastructure-specialist` lead with `swe-worker` and `testing-specialist` support**
    - Strict TypeScript, ESLint, Prettier, Vitest, package scripts, lockfile policy, and CI cache/install/check pipeline.
@@ -85,7 +85,7 @@ Create a reproducible, production-shaped monorepo foundation without implying th
 
 - **Implemented, repaired, and locally integrated:** P0.1–P0.4 and the non-visual P0.5 placeholder shell. Blocking/high/medium review findings and Phase 1 integration regressions were repaired; external provider/identity decisions and independent release reviews remain outside the local foundation gate.
 - `pnpm install --frozen-lockfile`, `pnpm audit:security`, `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `pnpm build` passed locally on Node 22.19.0 and pnpm 10.32.1. Focused API coverage is 23 passing tests across environment/SMTP security, deduplicated bounded readiness, safe errors, query/request-ID log redaction, span-attribute privacy, local providers, and telemetry-before-runtime ordering.
-- The Expo build now exports only Android and iOS. Expo SDK 56.0.14, React 19.2.3, and React Native 0.85.3 remain aligned; web scripts, output, React DOM, and React Native Web were removed.
+- The Expo build now exports only Android and iOS. Expo SDK 57.0.13, React 19.2.3, and Expo-selected React Native 0.86.2 remain aligned; web scripts, output, React DOM, and React Native Web were removed.
 - Audit remediation upgraded or overrode Fastify, Drizzle, Nodemailer, OpenTelemetry, Vitest, esbuild, fast-xml-parser, uuid, and protobufjs. Full and production audits report zero critical and two high advisories, both unpatched `image-size` issues reachable only through Expo Metro build tooling; CI ignores only those named advisories with rationale in `README.md`.
 - Compose validation, runtime and immutable migration image builds, and the migration image execution passed. Postgres 17, MinIO, and Mailpit became healthy on loopback-only ports; `/health` and aggregate `/ready` returned 200; the scoped MinIO app account completed object write/stat/delete, was denied access to a second bucket, and anonymous access returned 403.
 - Services were stopped with `down` and the three named volumes remain. No feature schema or product feature was added. External provider accounts, beta region/quotas/terms, final identity, store accounts, and optional external Sentry/GlitchTip remain blocked or deliberately disabled.
@@ -176,14 +176,14 @@ Deliver secure account/session behavior and the navigable mobile shell with prof
 ### Exact work packages and assigned roles
 
 1. **P2.1 Email/session API — `swe-worker`**
-   - Registration/login, normalized email, Argon2id parameters, rate limits, non-enumerating errors.
-   - 15-minute JWT access tokens; opaque hashed 30-day refresh tokens; rotate by family and revoke family on reuse; logout revocation.
-2. **P2.2 SSO/linking — `swe-worker` after policy approval**
-   - Verify Apple/Google issuer, audience, signature, expiry, nonce/state, and provider subject.
-   - Implement approved linking rules; never merge from unverified email alone.
+   - Non-enumerating `202` registration request plus one-use email verification confirmation, normalized email, Argon2id parameters, layered rate limits, and private login errors.
+   - 15-minute versioned JWT access tokens; opaque hashed 30-day refresh tokens; encrypted same-request successor recovery until successor consumption/expiry/revocation, family reuse revocation, and idempotent logout/reset access invalidation.
+2. **P2.2 SSO/linking — BLOCKED**
+   - Keep canonical Apple/Google JOSE/JWKS verifier interfaces non-routable.
+   - Do not add sign-in/link routes until server-owned one-use state/nonce/PKCE, real native/provider setup, and recent step-up for permanent linking are independently reviewed.
 3. **P2.3 Profile/delete/password reset — `swe-worker`**
    - `GET/PATCH/DELETE /v1/me`, units/default sport, confirmed deletion/outbox.
-   - One-use expiring reset token via SMTP adapter: Mailpit local, Resend beta.
+   - One-use expiring reset token via an AES-GCM encrypted transactional email outbox: Mailpit local, Resend beta. Request returns immediately and confirmation is `204 No Content`.
 4. **P2.4 Mobile auth/session shell — `swe-worker`**
    - Secure storage, coordinated refresh/replay, onboarding/auth screens, four-tab navigation, profile/settings/legal placeholders, active-draft sign-out guard.
 5. **P2.5 UX/accessibility — `design-specialist` with approved design**
@@ -193,21 +193,29 @@ Deliver secure account/session behavior and the navigable mobile shell with prof
 
 ### Acceptance gates
 
-- Refresh rotation survives cold start; replay of an old refresh token revokes its family.
-- All owner endpoints reject cross-user access.
-- Email reset is non-enumerating; Mailpit captures local mail.
-- SSO gate requires real provider evidence and approved linking policy.
+- Refresh rotation survives delayed cold recovery by reusing a persisted `rotation_request_id` while its linked successor remains usable; successor consumption clears recovery and any later/different-ID old-token replay revokes the family.
+- All owner endpoints reject cross-user access; logout increments auth version only for newly revoked families, reset invalidates access immediately, and deletion uses atomic password/version conditions with layered attempt limits.
+- Registration and reset use equivalent encrypted delivery/tombstone outbox work for known/unknown addresses, bounded retries, pasteable one-use tokens, and tight tombstone/completed/dead retention.
+- The entirely uncommitted Phase 2 schema ships as one additive `0002_phase2_auth.sql` from committed Phase 1; preservation and replay are tested.
+- SSO and linking routes remain absent until real native/provider evidence and the state/nonce/PKCE/step-up design pass review.
 - Global unit changes propagate through shell state.
 
 ### Automated verification
 
-- Vitest/API integration tests for password policy, rate limiting, access expiry, rotation race, family reuse, logout, linking collision, profile validation, and cascade/outbox.
+- Vitest/API integration tests for verified/non-enumerating registration, password policy, layered/random-identifier rate limiting, access expiry, delayed rotation recovery, family reuse, idempotent logout, profile/deletion step-up, migration preservation, and cascade/outbox retention.
 - Mobile integration tests for secure session restore, coordinated refresh, and sign-out draft guard.
 - Accessibility static checks where supported.
 
+### Mobile status and evidence (2026-08-22)
+
+- Mobile registration now treats `POST /v1/auth/register` as a non-enumerating `202 accepted`, navigates to a paste-token verification screen, and stores no credentials until `POST /v1/auth/register/confirm` returns a valid session. The verification state provides native back navigation, request-new-email handoff, retry, field focus, and safe generic errors; new and existing-email request responses are indistinguishable to the client.
+- Password reset remains a paste-token flow with `204` confirmation. Account deletion collects current password, maps `403 step_up_failed` to a password-verification error, performs exactly one DELETE without refresh, and retains credentials; `step_up_required` remains an honest SSO-only blocker. Draft state remains injected through `AppStateProvider`, with the explicit clear default temporary until Phase 3 supplies its durable reporter.
+- The mobile baseline is Expo SDK `57.0.13` (published at least seven days before integration), React 19.2.3, and Expo-selected React Native 0.86.2, with compatible Expo modules and the required `expo-font`/`@expo/dom-webview` peers. Expo dependency validation intentionally excludes only the newer Expo `57.0.15` patch recommendation so the reviewed mature `57.0.13` remains pinned; all other dependencies are current and Expo Doctor passes 21/21 checks. Seven mobile test files contain 30 passing tests. V8 coverage for selected pure auth/session/state modules is 87.59% statements/lines, 83.17% branches, and 82.60% functions, enforced in CI.
+- Frozen install, format, lint, workspace typecheck/tests, coverage, Expo dependency/config/Doctor checks, security audit, and Android/iOS exports pass. API database/auth/Mailpit integration cases remain skipped without their external test services. Simulator/physical-device accessibility, native SSO, and signed release-build evidence are not claimed.
+
 ### Manual/external blockers
 
-- Apple/Google developer projects, OAuth IDs/secrets, callback URLs, paid distribution accounts, and account-linking policy approval.
+- Apple/Google developer projects, native callback setup, server-owned one-use state/nonce/PKCE, recent provider step-up, paid distribution accounts, and real provider/device proof remain blocked. There are deliberately no SSO or linking API routes; local JWKS verifier tests are not SSO completion evidence.
 - Published legal URLs are required by Phase 8, not local shell completion.
 
 ### Commit boundary

@@ -69,9 +69,9 @@ Coaches, teams, social creators, wearable-first athletes, desktop route planners
 
 ### 6.1 Onboarding and account
 
-A new user sees a short value explanation, then creates an account with email/password, Apple, or Google. Location is not requested at signup. The app stores a secure session and lands on Record. Profile choices include display name, default sport, and metric/imperial units.
+A new user sees a short value explanation, submits email/password/display name, receives a pasteable one-use email verification token, and receives a session only after confirmation. Initial registration responses do not reveal whether an address already exists. Location is not requested at signup. Profile choices include display name, default sport, and metric/imperial units.
 
-If multiple providers represent the same person, linking follows a documented, verified policy. Trail must not silently merge accounts from an unverified email match.
+Apple/Google sign-in and provider linking are externally blocked and have no API routes. Verifier adapters alone are not product completion evidence. The future policy remains provider-subject-first, never links from unverified email, and requires server-owned one-use state/nonce/PKCE plus recent authenticated step-up before permanent linking. Apple relay addresses remain valid provider emails once the complete native/provider flow is proven.
 
 ### 6.2 Recording
 

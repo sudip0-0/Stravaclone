@@ -3,6 +3,7 @@ import nodemailer from 'nodemailer';
 import postgres from 'postgres';
 import type { ApiConfig } from '../config.js';
 import { ApplicationError } from '../http/application-error.js';
+import { createIdentityProviders } from './identity.js';
 import type { DependencyStatus, EmailMessage, Providers } from './ports.js';
 
 export function createLocalProviders(config: ApiConfig): Providers {
@@ -43,6 +44,7 @@ export function createLocalProviders(config: ApiConfig): Providers {
 
   return {
     database: {
+      sql,
       async checkHealth(): Promise<DependencyStatus> {
         try {
           await sql`select 1`;
@@ -52,6 +54,7 @@ export function createLocalProviders(config: ApiConfig): Providers {
         }
       },
     },
+    identity: createIdentityProviders(config),
     objectStorage: {
       bucket: config.OBJECT_STORAGE_BUCKET,
       async checkHealth(): Promise<DependencyStatus> {

@@ -17,6 +17,14 @@ export const registerRequestSchema = z.strictObject({
 });
 export type RegisterRequest = z.infer<typeof registerRequestSchema>;
 
+export const registerConfirmRequestSchema = z.strictObject({
+  token: z.string().min(32).max(4096),
+  device_hint: z.string().trim().min(1).max(200).optional(),
+});
+export type RegisterConfirmRequest = z.infer<
+  typeof registerConfirmRequestSchema
+>;
+
 export const loginRequestSchema = z.strictObject({
   email: emailSchema,
   password: z.string().min(1).max(256),
@@ -26,8 +34,7 @@ export type LoginRequest = z.infer<typeof loginRequestSchema>;
 
 export const identityLoginRequestSchema = z.strictObject({
   identity_token: z.string().min(1).max(16_384),
-  authorization_code: z.string().min(1).max(4096).optional(),
-  nonce: z.string().min(1).max(512).optional(),
+  nonce: z.string().min(16).max(512),
   device_hint: z.string().trim().min(1).max(200).optional(),
 });
 export type IdentityLoginRequest = z.infer<typeof identityLoginRequestSchema>;
@@ -49,8 +56,30 @@ export type AuthResponse = z.infer<typeof authResponseSchema>;
 
 export const refreshSessionRequestSchema = z.strictObject({
   refresh_token: z.string().min(1).max(4096),
+  rotation_request_id: uuidSchema,
 });
-export const logoutRequestSchema = refreshSessionRequestSchema;
+export const logoutRequestSchema = z.strictObject({
+  refresh_token: z.string().min(1).max(4096),
+});
+
+export const passwordResetRequestSchema = z.strictObject({
+  email: emailSchema,
+});
+export type PasswordResetRequest = z.infer<typeof passwordResetRequestSchema>;
+
+export const passwordResetConfirmSchema = z.strictObject({
+  token: z.string().min(32).max(4096),
+  password: passwordSchema,
+});
+export type PasswordResetConfirm = z.infer<typeof passwordResetConfirmSchema>;
+
+export const identityLinkRequestSchema = identityLoginRequestSchema;
+export type IdentityLinkRequest = z.infer<typeof identityLinkRequestSchema>;
+
+export const acceptedResponseSchema = z.strictObject({
+  accepted: z.literal(true),
+});
+export type AcceptedResponse = z.infer<typeof acceptedResponseSchema>;
 
 export const linkedIdentitySchema = z.strictObject({
   id: uuidSchema,

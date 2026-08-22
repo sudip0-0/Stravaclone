@@ -4,7 +4,8 @@ export const errorCodeSchema = z.enum([
   'internal_error',
   'invalid_request',
   'invalid_credentials',
-  'email_already_exists',
+  'step_up_required',
+  'step_up_failed',
   'unauthorized',
   'forbidden',
   'not_found',
@@ -18,6 +19,7 @@ export const errorCodeSchema = z.enum([
   'unsupported_media_type',
   'rate_limited',
   'provider_unavailable',
+  'account_link_required',
   'service_unavailable',
 ]);
 export type ErrorCode = z.infer<typeof errorCodeSchema>;

@@ -25,7 +25,7 @@ Work in phase order unless a dependency is explicitly resolved another way. A ta
 
 - [x] **P0** Record development identity: slug `trail`, temporary iOS/Android IDs `com.trailapp.mobile`.
 - [!] **P0** Confirm final brand, bundle/application IDs, domains, legal owner, and paid Apple/Google store accounts. (`Q1`; external)
-- [x] **P0** Select Node 22, pnpm workspaces, Expo SDK 56/Expo-selected React Native, Fastify, Zod, Drizzle/Postgres, Vitest, ESLint, and Prettier.
+- [x] **P0** Select Node 22, pnpm workspaces, Expo SDK 57/Expo-selected React Native, Fastify, Zod, Drizzle/Postgres, Vitest, ESLint, and Prettier.
 - [x] **P0** Select local Docker services: Postgres 17, MinIO, and Mailpit.
 - [x] **P0** Select free-beta providers: Koyeb free API, Neon free Postgres, private Cloudflare R2, and Resend free SMTP; record Koyeb no-SLA/scale-to-zero constraint.
 - [ ] **P0** Select beta region, create provider accounts, validate quotas/terms, and choose secrets management.
@@ -41,7 +41,7 @@ Work in phase order unless a dependency is explicitly resolved another way. A ta
 ### 0.2 Monorepo bootstrap
 
 - [x] **P0** Create pnpm workspaces for `apps/mobile`, `apps/api`, `packages/contracts`, `packages/domain`, `packages/config`, and `infra` on Node 22.
-- [x] **P0** Bootstrap Expo SDK 56 with Expo-compatible React Native and a Fastify API.
+- [x] **P0** Bootstrap Expo SDK 57 with Expo-compatible React Native and a Fastify API.
 - [x] **P0** Add strict TypeScript, ESLint, Prettier, Vitest, typecheck, and build scripts.
 - [x] **P0** Add Zod environment validation and checked-in `.env.example` files with no credentials.
 - [x] **P0** Add CI for install, format check, lint, typecheck, unit/integration tests, and builds.
@@ -83,28 +83,28 @@ Work in phase order unless a dependency is explicitly resolved another way. A ta
 
 ### 2.1 API authentication
 
-- [ ] **P0** Email registration/login with normalized unique email, password policy, Argon2id/bcrypt, and non-enumerating errors. (`AUTH-1`)
-- [ ] **P0** Short-lived access JWTs and rotating hashed refresh token families with reuse detection. (`AUTH-4`)
-- [ ] **P0** Logout revocation and device-session tests. (`AUTH-5`)
-- [ ] **P0** Verify Sign in with Apple server-side and support relay addresses. (`AUTH-2`)
-- [ ] **P0** Verify Google identity server-side on iOS/Android. (`AUTH-3`)
-- [ ] **P0** Enforce documented safe linking behavior across providers.
-- [ ] **P0** Rate-limit auth and add security integration tests. (`NFR security`)
-- [ ] **P1** Password reset with expiring one-use token and non-enumerating response. (`AUTH-6`)
+- [x] **P0** Non-enumerating email-verified registration (`202` request + one-use confirmation), normalized unique email, password policy, Argon2id, and private login errors. (`AUTH-1`)
+- [x] **P0** Versioned short-lived access JWTs and rotating hashed refresh families with durable encrypted same-request successor recovery until successor consumption/expiry/revocation. (`AUTH-4`)
+- [x] **P0** Idempotent family logout revocation, one-time auth-version invalidation, and replay tests. (`AUTH-5`)
+- [ ] **P0 BLOCKED — external/native security flow** Sign in with Apple has no API route. Verifier interfaces exist, but server-owned one-use state/nonce/PKCE, native callback setup, and real provider/device proof are required. (`AUTH-2`)
+- [ ] **P0 BLOCKED — external/native security flow** Google sign-in has no API route. Verifier interfaces exist, but server-owned one-use state/nonce/PKCE, native callback setup, and real provider/device proof are required. (`AUTH-3`)
+- [ ] **P0 BLOCKED — step-up design** Provider linking has no API route and must require recent step-up before permanent identity attachment.
+- [x] **P0** Layer validated-IP and normalized identity/token/user auth limits, bound global/endpoint Argon2 queues, and add random-identifier abuse tests. (`NFR security`)
+- [x] **P1** Password reset with expiring one-use token and non-enumerating response. (`AUTH-6`)
 
 ### 2.2 User/profile API
 
-- [ ] **P0** Implement `GET/PATCH /v1/me`, profile validation, units, and default sport. (`PROF-1`, `PROF-2`)
-- [ ] **P1** Implement confirmed account deletion with DB cascade and queued blob cleanup. (`PROF-3`)
+- [x] **P0** Implement `GET/PATCH /v1/me`, profile validation, units, and default sport. (`PROF-1`, `PROF-2`)
+- [x] **P1** Implement confirmed password-account deletion with current-password proof, DB cascade, and queued blob cleanup. SSO-only deletion remains blocked pending provider step-up. (`PROF-3`)
 
 ### 2.3 Mobile shell
 
-- [ ] **P0** Build welcome, sign-in, sign-up, session restore, and sign-out flows.
-- [ ] **P0** Store refresh/access credentials only in platform secure storage.
-- [ ] **P0** Add coordinated refresh and safe request replay; return to sign-in on terminal failure.
-- [ ] **P0** Add Record, Activity, Routes, and You tab/stack navigation. (`NAV-1`)
-- [ ] **P0** Build profile/settings, linked-account status, units, legal links, attribution, sign-out, and delete-account entry. (`SET-1`, `SET-2`)
-- [ ] **P0** Ensure sign-out does not silently discard an active or unsynced draft. (`AUTH-5`)
+- [x] **P0** Sign-up uses non-enumerating `202` accepted registration followed by pasteable email verification token confirmation; secure session creation occurs only after successful confirmation, while welcome/sign-in/session/sign-out flows remain available.
+- [x] **P0** Store refresh/access credentials only in platform secure storage.
+- [x] **P0** Coordinated refresh securely persists and reuses stable `rotation_request_id`, replays once, retains credentials for retryable network/429/5xx failures, and returns to sign-in only on terminal auth failure.
+- [x] **P0** Add Record, Activity, Routes, and You tab/stack navigation. (`NAV-1`)
+- [x] **P0** Profile/settings collect current-password deletion proof, surface `step_up_required` for SSO-only accounts and `403 step_up_failed` for wrong password, use paste-token reset, and keep SSO/link controls informational and non-routable while retaining units/legal/attribution. (`SET-1`, `SET-2`)
+- [x] **P0** Ensure sign-out does not silently discard an active or unsynced draft. The Phase 2 guard consumes the recording/sync reporter interface and never mutates draft data; Phase 3 must connect its durable reporter. (`AUTH-5`)
 - [ ] **P1** Add app version and privacy-safe recording diagnostic export. (`SET-3`)
 
 **Exit:** All auth methods work on target platforms, session rotation survives cold start, and profile units apply globally.

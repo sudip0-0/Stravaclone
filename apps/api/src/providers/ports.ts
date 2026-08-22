@@ -1,4 +1,5 @@
 import type { ElevationProvider } from '@trail/domain';
+import type { Sql } from 'postgres';
 
 export type {
   ElevationProvider,
@@ -10,6 +11,26 @@ export type DependencyStatus = 'up' | 'down' | 'disabled';
 
 export interface HealthCheckable {
   checkHealth(): Promise<DependencyStatus>;
+}
+
+export interface DatabaseProvider extends HealthCheckable {
+  readonly sql?: Sql;
+}
+
+export interface VerifiedIdentity {
+  readonly subject: string;
+  readonly email: string | null;
+  readonly emailVerified: boolean;
+}
+
+export interface IdentityVerifier {
+  readonly enabled: boolean;
+  verify(identityToken: string, nonce: string): Promise<VerifiedIdentity>;
+}
+
+export interface IdentityProviders {
+  readonly apple: IdentityVerifier;
+  readonly google: IdentityVerifier;
 }
 
 export interface ObjectStorageProvider extends HealthCheckable {
@@ -45,7 +66,8 @@ export interface TelemetryProvider {
 }
 
 export interface Providers {
-  readonly database: HealthCheckable;
+  readonly database: DatabaseProvider;
+  readonly identity: IdentityProviders;
   readonly objectStorage: ObjectStorageProvider;
   readonly email: EmailProvider;
   readonly mapStyle: MapStyleProvider;
