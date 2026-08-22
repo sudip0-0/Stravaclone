@@ -1,12 +1,24 @@
 import * as SQLite from 'expo-sqlite';
-import type { CreateActivityRequest } from '@trail/contracts';
-import type { TrackPoint } from '@trail/domain';
+import type {
+  CreateActivityRequest,
+  CreateRouteRequest,
+  Route,
+  UpdateRouteRequest,
+} from '@trail/contracts';
+import { encodePolyline, trackDistanceM, type TrackPoint } from '@trail/domain';
 import type {
   SyncFailureKind,
   SyncJob,
   SyncRepository,
 } from '../features/activity-sync/sync-engine';
 import { purgeManagedOwnerPhotos } from '../features/photos/photo-file-store';
+import {
+  ROUTE_TOMBSTONE_RETENTION_MS,
+  type CachedRoute,
+  type RouteRepository,
+  type RouteSyncJob,
+} from '../features/routes/route-cache';
+import { recordingRoutePayload } from '../features/routes/recording-route';
 import type {
   NewPendingPhoto,
   PendingPhoto,
@@ -35,6 +47,9 @@ interface SessionRow {
   owner_user_id: string;
   state: PersistedRecordingState;
   sport: RecordingSession['sport'];
+  route_id: string | null;
+  route_polyline: string | null;
+  route_waypoints_json: string | null;
   background_enabled: number;
   created_at_ms: number;
   started_at_ms: number | null;
@@ -70,6 +85,33 @@ interface PendingPhotoRow {
   next_attempt_at_ms: number;
   last_safe_error_code: string | null;
   lease_expires_at_ms: number | null;
+}
+interface CachedRouteRow {
+  owner_user_id: string;
+  id: string;
+  name: string;
+  sport_hint: Route['sport_hint'];
+  waypoints_json: string;
+  polyline: string;
+  distance_m: number;
+  elevation_gain_m: number | null;
+  created_at: string;
+  updated_at: string;
+  sync_status: CachedRoute['sync_status'];
+  tombstone: number;
+  revision: number;
+  deleted_at_ms: number | null;
+}
+interface RouteSyncJobRow {
+  id: string;
+  owner_user_id: string;
+  route_id: string;
+  operation: RouteSyncJob['operation'];
+  payload_json: string | null;
+  attempt_count: number;
+  next_attempt_at_ms: number;
+  status: RouteSyncJob['status'];
+  revision: number;
 }
 interface PauseRow {
   started_at_ms: number;
@@ -199,12 +241,50 @@ UPDATE pending_photos SET status=CASE WHEN server_photo_id IS NULL THEN 'pending
  WHERE status IN ('uploading','completing');
 PRAGMA user_version = 8;`;
 
+const MIGRATION_9 = `
+ALTER TABLE recording_sessions ADD COLUMN route_polyline TEXT;
+ALTER TABLE recording_sessions ADD COLUMN route_waypoints_json TEXT;
+CREATE TABLE IF NOT EXISTS cached_routes (
+ owner_user_id TEXT NOT NULL, id TEXT NOT NULL, name TEXT NOT NULL, sport_hint TEXT,
+ waypoints_json TEXT NOT NULL, polyline TEXT NOT NULL, distance_m REAL NOT NULL,
+ elevation_gain_m REAL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+ sync_status TEXT NOT NULL CHECK(sync_status IN ('synced','pending','needs_attention')),
+ tombstone INTEGER NOT NULL DEFAULT 0 CHECK(tombstone IN (0,1)),
+ PRIMARY KEY(owner_user_id,id)
+);
+CREATE INDEX IF NOT EXISTS cached_routes_owner_updated ON cached_routes(owner_user_id,tombstone,updated_at DESC);
+CREATE TABLE IF NOT EXISTS route_sync_jobs (
+ id TEXT PRIMARY KEY NOT NULL, owner_user_id TEXT NOT NULL, route_id TEXT NOT NULL,
+ operation TEXT NOT NULL CHECK(operation IN ('create','update','delete')), payload_json TEXT,
+ attempt_count INTEGER NOT NULL DEFAULT 0, next_attempt_at_ms INTEGER NOT NULL,
+ status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','needs_attention')),
+ UNIQUE(owner_user_id,route_id)
+);
+CREATE INDEX IF NOT EXISTS route_sync_jobs_due ON route_sync_jobs(owner_user_id,status,next_attempt_at_ms);
+PRAGMA user_version = 9;`;
+
+const MIGRATION_10 = `
+ALTER TABLE cached_routes ADD COLUMN revision INTEGER NOT NULL DEFAULT 0 CHECK(revision >= 0);
+ALTER TABLE cached_routes ADD COLUMN deleted_at_ms INTEGER;
+ALTER TABLE route_sync_jobs ADD COLUMN revision INTEGER NOT NULL DEFAULT 0 CHECK(revision >= 0);
+UPDATE cached_routes SET revision=1 WHERE sync_status<>'synced' OR tombstone=1;
+UPDATE route_sync_jobs SET revision=1;
+PRAGMA user_version = 10;`;
+
 function mapSession(row: SessionRow): RecordingSession {
   return {
     id: row.id,
     ownerUserId: row.owner_user_id,
     state: row.state,
     sport: row.sport,
+    routeId: row.route_id,
+    routePolyline: row.route_polyline,
+    routeWaypoints: row.route_waypoints_json
+      ? (JSON.parse(row.route_waypoints_json) as readonly {
+          latitude: number;
+          longitude: number;
+        }[])
+      : [],
     backgroundEnabled: row.background_enabled === 1,
     createdAtMs: row.created_at_ms,
     startedAtMs: row.started_at_ms,
@@ -229,6 +309,39 @@ function mapPoint(row: PointRow): SequencedPoint {
     elevationM: row.elevation_m,
     accuracyM: row.accuracy_m,
     timestampMs: row.recorded_at_ms,
+  };
+}
+function mapCachedRoute(row: CachedRouteRow): CachedRoute {
+  return {
+    id: row.id,
+    owner_user_id: row.owner_user_id,
+    name: row.name,
+    sport_hint: row.sport_hint,
+    waypoints: JSON.parse(row.waypoints_json) as Route['waypoints'],
+    polyline: row.polyline,
+    distance_m: row.distance_m,
+    elevation_gain_m: row.elevation_gain_m,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    sync_status: row.sync_status,
+    revision: row.revision,
+  };
+}
+function mapRouteSyncJob(row: RouteSyncJobRow): RouteSyncJob {
+  return {
+    id: row.id,
+    ownerUserId: row.owner_user_id,
+    routeId: row.route_id,
+    operation: row.operation,
+    payload: row.payload_json
+      ? (JSON.parse(row.payload_json) as
+          | CreateRouteRequest
+          | UpdateRouteRequest)
+      : null,
+    attemptCount: row.attempt_count,
+    nextAttemptAtMs: row.next_attempt_at_ms,
+    status: row.status,
+    revision: row.revision,
   };
 }
 function mapPendingPhoto(row: PendingPhotoRow): PendingPhoto {
@@ -256,7 +369,11 @@ export class PointLimitReachedError extends Error {
 }
 
 export class SQLiteRecordingRepository
-  implements RecordingRepository, SyncRepository, PendingPhotoRepository
+  implements
+    RecordingRepository,
+    SyncRepository,
+    PendingPhotoRepository,
+    RouteRepository
 {
   private databasePromise: Promise<SQLite.SQLiteDatabase> | null = null;
   private migrationPromise: Promise<void> | null = null;
@@ -321,7 +438,15 @@ export class SQLiteRecordingRepository
           await this.runMigration(db, MIGRATION_7);
           version = 7;
         }
-        if (version < 8) await this.runMigration(db, MIGRATION_8);
+        if (version < 8) {
+          await this.runMigration(db, MIGRATION_8);
+          version = 8;
+        }
+        if (version < 9) {
+          await this.runMigration(db, MIGRATION_9);
+          version = 9;
+        }
+        if (version < 10) await this.runMigration(db, MIGRATION_10);
         await db.execAsync(
           'PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA cipher_memory_security = ON; PRAGMA secure_delete = ON;',
         );
@@ -342,11 +467,14 @@ export class SQLiteRecordingRepository
     await (
       await this.database()
     ).runAsync(
-      `INSERT INTO recording_sessions (id,owner_user_id,state,sport,background_enabled,created_at_ms,started_at_ms,updated_at_ms)
-       VALUES (?,?,'recording',?,?,?, ?,?)`,
+      `INSERT INTO recording_sessions (id,owner_user_id,state,sport,route_id,route_polyline,route_waypoints_json,background_enabled,created_at_ms,started_at_ms,updated_at_ms)
+       VALUES (?,?,'recording',?,?,?,?,?,?, ?,?)`,
       input.id,
       input.ownerUserId,
       input.sport,
+      input.routeId ?? null,
+      input.routePolyline ?? null,
+      input.routeWaypoints ? JSON.stringify(input.routeWaypoints) : null,
       input.backgroundEnabled ? 1 : 0,
       input.nowMs,
       input.nowMs,
@@ -640,6 +768,27 @@ export class SQLiteRecordingRepository
     });
     return (await this.getSession(ownerUserId, sessionId))!;
   }
+  async setRoutePlan(
+    ownerUserId: string,
+    sessionId: string,
+    route: {
+      routeId: string;
+      polyline: string;
+      waypoints: readonly { latitude: number; longitude: number }[];
+    } | null,
+  ) {
+    await (
+      await this.database()
+    ).runAsync(
+      'UPDATE recording_sessions SET route_id=?,route_polyline=?,route_waypoints_json=?,updated_at_ms=? WHERE id=? AND owner_user_id=?',
+      route?.routeId ?? null,
+      route?.polyline ?? null,
+      route ? JSON.stringify(route.waypoints) : null,
+      Date.now(),
+      sessionId,
+      ownerUserId,
+    );
+  }
   async saveLocally(
     ownerUserId: string,
     sessionId: string,
@@ -837,7 +986,7 @@ export class SQLiteRecordingRepository
       notes: null,
       started_at: new Date(session.startedAtMs).toISOString(),
       ended_at: new Date(session.stoppedAtMs).toISOString(),
-      route_id: null,
+      ...recordingRoutePayload(session),
       pauses: pauses.map((pause) => ({
         started_at: new Date(pause.started_at_ms).toISOString(),
         ended_at: new Date(pause.ended_at_ms).toISOString(),
@@ -1146,6 +1295,375 @@ export class SQLiteRecordingRepository
       nowMs,
     );
   }
+  async listRoutes(ownerUserId: string): Promise<readonly CachedRoute[]> {
+    await this.migrate();
+    const rows = await (
+      await this.database()
+    ).getAllAsync<CachedRouteRow>(
+      'SELECT * FROM cached_routes WHERE owner_user_id=? AND tombstone=0 ORDER BY updated_at DESC,id DESC',
+      ownerUserId,
+    );
+    return rows.map(mapCachedRoute);
+  }
+  async getRoute(ownerUserId: string, routeId: string) {
+    await this.migrate();
+    const row = await (
+      await this.database()
+    ).getFirstAsync<CachedRouteRow>(
+      'SELECT * FROM cached_routes WHERE owner_user_id=? AND id=? AND tombstone=0',
+      ownerUserId,
+      routeId,
+    );
+    return row ? mapCachedRoute(row) : null;
+  }
+  async getRouteTombstone(ownerUserId: string, routeId: string) {
+    await this.migrate();
+    const row = await (
+      await this.database()
+    ).getFirstAsync<{
+      owner_user_id: string;
+      id: string;
+      revision: number;
+      deleted_at_ms: number;
+      sync_status: 'synced';
+    }>(
+      `SELECT owner_user_id,id,revision,deleted_at_ms,sync_status FROM cached_routes WHERE owner_user_id=? AND id=? AND tombstone=1 AND sync_status='synced' AND deleted_at_ms IS NOT NULL`,
+      ownerUserId,
+      routeId,
+    );
+    return row
+      ? {
+          ownerUserId: row.owner_user_id,
+          routeId: row.id,
+          revision: row.revision,
+          deletedAtMs: row.deleted_at_ms,
+          status: row.sync_status,
+        }
+      : null;
+  }
+  async createRoute(
+    ownerUserId: string,
+    input: CreateRouteRequest,
+    nowMs: number,
+  ) {
+    await this.migrate();
+    const now = new Date(nowMs).toISOString();
+    const polyline = encodePolyline(input.waypoints);
+    const distanceM = trackDistanceM(input.waypoints);
+    const db = await this.database();
+    await db.withExclusiveTransactionAsync(async (tx) => {
+      await tx.runAsync(
+        `INSERT INTO cached_routes (owner_user_id,id,name,sport_hint,waypoints_json,polyline,distance_m,elevation_gain_m,created_at,updated_at,sync_status,tombstone,revision,deleted_at_ms)
+         VALUES (?,?,?,?,?,?,?,NULL,?,?,'pending',0,1,NULL)`,
+        ownerUserId,
+        input.id,
+        input.name.trim(),
+        input.sport_hint ?? null,
+        JSON.stringify(input.waypoints),
+        polyline,
+        distanceM,
+        now,
+        now,
+      );
+      await tx.runAsync(
+        `INSERT INTO route_sync_jobs (id,owner_user_id,route_id,operation,payload_json,next_attempt_at_ms,status,revision)
+         VALUES (?,?,?,'create',?,?,'pending',1)`,
+        `${ownerUserId}:${input.id}`,
+        ownerUserId,
+        input.id,
+        JSON.stringify(input),
+        nowMs,
+      );
+    });
+    return (await this.getRoute(ownerUserId, input.id))!;
+  }
+  async updateRoute(
+    ownerUserId: string,
+    routeId: string,
+    patch: UpdateRouteRequest,
+    nowMs: number,
+  ) {
+    await this.migrate();
+    const db = await this.database();
+    await db.withExclusiveTransactionAsync(async (tx) => {
+      const row = await tx.getFirstAsync<CachedRouteRow>(
+        'SELECT * FROM cached_routes WHERE owner_user_id=? AND id=? AND tombstone=0',
+        ownerUserId,
+        routeId,
+      );
+      if (!row) throw new Error('route_not_found');
+      const current = mapCachedRoute(row);
+      const waypoints = patch.waypoints ?? current.waypoints;
+      const name = patch.name ?? current.name;
+      const sportHint =
+        patch.sport_hint === undefined ? current.sport_hint : patch.sport_hint;
+      const revision = current.revision + 1;
+      const prior = await tx.getFirstAsync<RouteSyncJobRow>(
+        'SELECT * FROM route_sync_jobs WHERE owner_user_id=? AND route_id=?',
+        ownerUserId,
+        routeId,
+      );
+      const operation = prior?.operation === 'create' ? 'create' : 'update';
+      const payload =
+        operation === 'create'
+          ? { id: routeId, name, sport_hint: sportHint, waypoints }
+          : patch;
+      await tx.runAsync(
+        `UPDATE cached_routes SET name=?,sport_hint=?,waypoints_json=?,polyline=?,distance_m=?,updated_at=?,sync_status='pending',revision=?,deleted_at_ms=NULL WHERE owner_user_id=? AND id=? AND tombstone=0`,
+        name,
+        sportHint,
+        JSON.stringify(waypoints),
+        encodePolyline(waypoints),
+        trackDistanceM(waypoints),
+        new Date(nowMs).toISOString(),
+        revision,
+        ownerUserId,
+        routeId,
+      );
+      await tx.runAsync(
+        `INSERT INTO route_sync_jobs (id,owner_user_id,route_id,operation,payload_json,attempt_count,next_attempt_at_ms,status,revision)
+         VALUES (?,?,?,?,?,0,?,'pending',?) ON CONFLICT(owner_user_id,route_id) DO UPDATE SET operation=excluded.operation,payload_json=excluded.payload_json,next_attempt_at_ms=excluded.next_attempt_at_ms,status='pending',revision=excluded.revision`,
+        `${ownerUserId}:${routeId}`,
+        ownerUserId,
+        routeId,
+        operation,
+        JSON.stringify(payload),
+        nowMs,
+        revision,
+      );
+    });
+    return (await this.getRoute(ownerUserId, routeId))!;
+  }
+  async deleteRoute(ownerUserId: string, routeId: string, nowMs: number) {
+    await this.migrate();
+    const db = await this.database();
+    await db.withExclusiveTransactionAsync(async (tx) => {
+      const row = await tx.getFirstAsync<{ revision: number }>(
+        'SELECT revision FROM cached_routes WHERE owner_user_id=? AND id=? AND tombstone=0',
+        ownerUserId,
+        routeId,
+      );
+      if (!row) throw new Error('route_not_found');
+      const revision = row.revision + 1;
+      await tx.runAsync(
+        `UPDATE cached_routes SET tombstone=1,sync_status='pending',updated_at=?,revision=?,deleted_at_ms=? WHERE owner_user_id=? AND id=? AND tombstone=0`,
+        new Date(nowMs).toISOString(),
+        revision,
+        nowMs,
+        ownerUserId,
+        routeId,
+      );
+      await tx.runAsync(
+        `INSERT INTO route_sync_jobs (id,owner_user_id,route_id,operation,payload_json,attempt_count,next_attempt_at_ms,status,revision)
+         VALUES (?,?,?,'delete',NULL,0,?,'pending',?) ON CONFLICT(owner_user_id,route_id) DO UPDATE SET operation='delete',payload_json=NULL,next_attempt_at_ms=excluded.next_attempt_at_ms,status='pending',revision=excluded.revision`,
+        `${ownerUserId}:${routeId}`,
+        ownerUserId,
+        routeId,
+        nowMs,
+        revision,
+      );
+    });
+  }
+  async mergeRemoteRoutes(ownerUserId: string, routes: readonly Route[]) {
+    await this.migrate();
+    const db = await this.database();
+    await db.withExclusiveTransactionAsync(async (tx) => {
+      for (const route of routes)
+        await tx.runAsync(
+          `INSERT INTO cached_routes (owner_user_id,id,name,sport_hint,waypoints_json,polyline,distance_m,elevation_gain_m,created_at,updated_at,sync_status,tombstone,revision,deleted_at_ms)
+           VALUES (?,?,?,?,?,?,?,?,?,?,'synced',0,0,NULL) ON CONFLICT(owner_user_id,id) DO UPDATE SET name=excluded.name,sport_hint=excluded.sport_hint,waypoints_json=excluded.waypoints_json,polyline=excluded.polyline,distance_m=excluded.distance_m,elevation_gain_m=excluded.elevation_gain_m,created_at=excluded.created_at,updated_at=excluded.updated_at WHERE cached_routes.sync_status='synced' AND cached_routes.tombstone=0`,
+          ownerUserId,
+          route.id,
+          route.name,
+          route.sport_hint,
+          JSON.stringify(route.waypoints),
+          route.polyline,
+          route.distance_m,
+          route.elevation_gain_m,
+          route.created_at,
+          route.updated_at,
+        );
+    });
+  }
+  async nextRouteSyncJob(ownerUserId: string, nowMs: number) {
+    await this.migrate();
+    const row = await (
+      await this.database()
+    ).getFirstAsync<RouteSyncJobRow>(
+      `SELECT * FROM route_sync_jobs WHERE owner_user_id=? AND status='pending' AND next_attempt_at_ms<=? ORDER BY next_attempt_at_ms,id LIMIT 1`,
+      ownerUserId,
+      nowMs,
+    );
+    return row ? mapRouteSyncJob(row) : null;
+  }
+  async nextRouteAttemptAt(ownerUserId: string) {
+    const row = await (
+      await this.database()
+    ).getFirstAsync<{ next_attempt_at_ms: number | null }>(
+      `SELECT MIN(next_attempt_at_ms) AS next_attempt_at_ms FROM route_sync_jobs WHERE owner_user_id=? AND status='pending'`,
+      ownerUserId,
+    );
+    return row?.next_attempt_at_ms ?? null;
+  }
+  async completeRouteSyncJob(job: RouteSyncJob, serverRoute?: Route) {
+    const db = await this.database();
+    await db.withExclusiveTransactionAsync(async (tx) => {
+      if (job.operation === 'create') {
+        const currentJob = await tx.getFirstAsync<RouteSyncJobRow>(
+          'SELECT * FROM route_sync_jobs WHERE id=? AND owner_user_id=?',
+          job.id,
+          job.ownerUserId,
+        );
+        const currentRoute = await tx.getFirstAsync<CachedRouteRow>(
+          'SELECT * FROM cached_routes WHERE owner_user_id=? AND id=?',
+          job.ownerUserId,
+          job.routeId,
+        );
+        if (
+          currentJob?.operation === 'create' &&
+          currentJob.revision > job.revision &&
+          currentRoute?.revision === currentJob.revision &&
+          currentRoute.tombstone === 0
+        ) {
+          const route = mapCachedRoute(currentRoute);
+          await tx.runAsync(
+            `UPDATE route_sync_jobs SET operation='update',payload_json=? WHERE id=? AND owner_user_id=? AND revision=? AND operation='create'`,
+            JSON.stringify({
+              name: route.name,
+              sport_hint: route.sport_hint,
+              waypoints: route.waypoints,
+            }),
+            currentJob.id,
+            currentJob.owner_user_id,
+            currentJob.revision,
+          );
+          return;
+        }
+      }
+      const deleted = await tx.runAsync(
+        'DELETE FROM route_sync_jobs WHERE id=? AND owner_user_id=? AND revision=?',
+        job.id,
+        job.ownerUserId,
+        job.revision,
+      );
+      if (!deleted.changes) return;
+      if (job.operation === 'delete')
+        await tx.runAsync(
+          `UPDATE cached_routes SET name='',sport_hint=NULL,waypoints_json='[]',polyline='',distance_m=0,elevation_gain_m=NULL,created_at='',updated_at='',sync_status='synced' WHERE owner_user_id=? AND id=? AND tombstone=1 AND revision=?`,
+          job.ownerUserId,
+          job.routeId,
+          job.revision,
+        );
+      else if (serverRoute)
+        await tx.runAsync(
+          `UPDATE cached_routes SET name=?,sport_hint=?,waypoints_json=?,polyline=?,distance_m=?,elevation_gain_m=?,created_at=?,updated_at=?,sync_status='synced',tombstone=0,deleted_at_ms=NULL WHERE owner_user_id=? AND id=? AND revision=? AND tombstone=0`,
+          serverRoute.name,
+          serverRoute.sport_hint,
+          JSON.stringify(serverRoute.waypoints),
+          serverRoute.polyline,
+          serverRoute.distance_m,
+          serverRoute.elevation_gain_m,
+          serverRoute.created_at,
+          serverRoute.updated_at,
+          job.ownerUserId,
+          job.routeId,
+          job.revision,
+        );
+    });
+  }
+  async rebaseRouteCreateJob(job: RouteSyncJob) {
+    const db = await this.database();
+    await db.withExclusiveTransactionAsync(async (tx) => {
+      const currentJob = await tx.getFirstAsync<RouteSyncJobRow>(
+        `SELECT * FROM route_sync_jobs WHERE id=? AND owner_user_id=? AND revision=? AND operation='create'`,
+        job.id,
+        job.ownerUserId,
+        job.revision,
+      );
+      const currentRoute = await tx.getFirstAsync<CachedRouteRow>(
+        'SELECT * FROM cached_routes WHERE owner_user_id=? AND id=? AND revision=? AND tombstone=0',
+        job.ownerUserId,
+        job.routeId,
+        job.revision,
+      );
+      if (!currentJob || !currentRoute) return;
+      const route = mapCachedRoute(currentRoute);
+      await tx.runAsync(
+        `UPDATE route_sync_jobs SET operation='update',payload_json=?,status='pending' WHERE id=? AND owner_user_id=? AND revision=? AND operation='create'`,
+        JSON.stringify({
+          name: route.name,
+          sport_hint: route.sport_hint,
+          waypoints: route.waypoints,
+        }),
+        job.id,
+        job.ownerUserId,
+        job.revision,
+      );
+    });
+  }
+  async failRouteSyncJob(
+    job: RouteSyncJob,
+    nextAttemptAtMs: number,
+    needsAttention: boolean,
+  ) {
+    const status = needsAttention ? 'needs_attention' : 'pending';
+    const db = await this.database();
+    await db.withExclusiveTransactionAsync(async (tx) => {
+      const updated = await tx.runAsync(
+        'UPDATE route_sync_jobs SET attempt_count=attempt_count+1,next_attempt_at_ms=?,status=? WHERE id=? AND owner_user_id=? AND revision=?',
+        nextAttemptAtMs,
+        status,
+        job.id,
+        job.ownerUserId,
+        job.revision,
+      );
+      if (!updated.changes) return;
+      await tx.runAsync(
+        'UPDATE cached_routes SET sync_status=? WHERE owner_user_id=? AND id=? AND revision=?',
+        status,
+        job.ownerUserId,
+        job.routeId,
+        job.revision,
+      );
+    });
+  }
+  async retryRouteSyncJobs(ownerUserId: string, nowMs: number) {
+    await (
+      await this.database()
+    ).runAsync(
+      `UPDATE route_sync_jobs SET status='pending',next_attempt_at_ms=? WHERE owner_user_id=? AND status='needs_attention'`,
+      nowMs,
+      ownerUserId,
+    );
+    await (
+      await this.database()
+    ).runAsync(
+      `UPDATE cached_routes SET sync_status='pending' WHERE owner_user_id=? AND sync_status='needs_attention'`,
+      ownerUserId,
+    );
+  }
+  async purgeExpiredRouteTombstones(ownerUserId: string, nowMs: number) {
+    await (
+      await this.database()
+    ).runAsync(
+      `DELETE FROM cached_routes WHERE owner_user_id=? AND tombstone=1 AND sync_status='synced' AND deleted_at_ms IS NOT NULL AND deleted_at_ms<=? AND NOT EXISTS (SELECT 1 FROM route_sync_jobs WHERE route_sync_jobs.owner_user_id=cached_routes.owner_user_id AND route_sync_jobs.route_id=cached_routes.id)`,
+      ownerUserId,
+      nowMs - ROUTE_TOMBSTONE_RETENTION_MS,
+    );
+  }
+  async purgeOwnerRoutes(ownerUserId: string) {
+    const db = await this.database();
+    await db.withExclusiveTransactionAsync(async (tx) => {
+      await tx.runAsync(
+        'DELETE FROM route_sync_jobs WHERE owner_user_id=?',
+        ownerUserId,
+      );
+      await tx.runAsync(
+        'DELETE FROM cached_routes WHERE owner_user_id=?',
+        ownerUserId,
+      );
+    });
+  }
   async purgeOwner(ownerUserId: string) {
     const db = await this.database();
     await db.withExclusiveTransactionAsync(async (tx) => {
@@ -1155,6 +1673,14 @@ export class SQLiteRecordingRepository
       );
       await tx.runAsync(
         'DELETE FROM recording_sessions WHERE owner_user_id=?',
+        ownerUserId,
+      );
+      await tx.runAsync(
+        'DELETE FROM route_sync_jobs WHERE owner_user_id=?',
+        ownerUserId,
+      );
+      await tx.runAsync(
+        'DELETE FROM cached_routes WHERE owner_user_id=?',
         ownerUserId,
       );
       await tx.runAsync(

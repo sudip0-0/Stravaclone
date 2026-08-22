@@ -33,6 +33,9 @@ export interface RecordingSession {
   readonly ownerUserId: string;
   readonly state: PersistedRecordingState;
   readonly sport: ActivitySport;
+  readonly routeId?: string | null;
+  readonly routePolyline?: string | null;
+  readonly routeWaypoints?: readonly { latitude: number; longitude: number }[];
   readonly backgroundEnabled: boolean;
   readonly createdAtMs: number;
   readonly startedAtMs: number | null;
@@ -57,6 +60,9 @@ export interface NewRecordingSession {
   readonly id: string;
   readonly ownerUserId: string;
   readonly sport: ActivitySport;
+  readonly routeId?: string | null;
+  readonly routePolyline?: string | null;
+  readonly routeWaypoints?: readonly { latitude: number; longitude: number }[];
   readonly backgroundEnabled: boolean;
   readonly nowMs: number;
 }
@@ -126,6 +132,15 @@ export interface RecordingRepository {
     distanceDeltaM: number,
     nowMs: number,
   ): Promise<RecordingSession>;
+  setRoutePlan?(
+    ownerUserId: string,
+    sessionId: string,
+    route: {
+      routeId: string;
+      polyline: string;
+      waypoints: readonly { latitude: number; longitude: number }[];
+    } | null,
+  ): Promise<void>;
   saveLocally(
     ownerUserId: string,
     sessionId: string,

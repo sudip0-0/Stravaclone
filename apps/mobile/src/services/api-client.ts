@@ -5,17 +5,23 @@ import {
   activitySchema,
   authResponseSchema,
   photoCompleteResponseSchema,
+  routeListResponseSchema,
+  routeSchema,
   signedPhotoUploadSchema,
   userSchema,
   type Activity,
   type ActivityListResponse,
   type AuthResponse,
   type CreateActivityRequest,
+  type CreateRouteRequest,
   type InitiatePhotoUploadRequest,
   type PhotoCompleteResponse,
+  type Route,
+  type RouteListResponse,
   type SessionTokens,
   type SignedPhotoUpload,
   type UpdateActivityRequest,
+  type UpdateRouteRequest,
   type UpdateUserRequest,
   type User,
 } from '@trail/contracts';
@@ -175,6 +181,45 @@ export class ApiClient implements RefreshTransport {
           method: 'DELETE',
         },
       ),
+    );
+  }
+  async createRoute(payload: CreateRouteRequest): Promise<Route> {
+    return expectResponse(
+      await this.authorized('/v1/routes', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+      routeSchema,
+    );
+  }
+  async listRoutes(cursor?: string, limit = 20): Promise<RouteListResponse> {
+    const query = new URLSearchParams({ limit: String(Math.min(100, limit)) });
+    if (cursor) query.set('cursor', cursor);
+    return expectResponse(
+      await this.authorized(`/v1/routes?${query.toString()}`),
+      routeListResponseSchema,
+    );
+  }
+  async getRoute(id: string): Promise<Route> {
+    return expectResponse(
+      await this.authorized(`/v1/routes/${encodeURIComponent(id)}`),
+      routeSchema,
+    );
+  }
+  async updateRoute(id: string, patch: UpdateRouteRequest): Promise<Route> {
+    return expectResponse(
+      await this.authorized(`/v1/routes/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify(patch),
+      }),
+      routeSchema,
+    );
+  }
+  async deleteRoute(id: string): Promise<void> {
+    await expectNoContent(
+      await this.authorized(`/v1/routes/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      }),
     );
   }
   async initiatePhotoUpload(

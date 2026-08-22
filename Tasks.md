@@ -198,15 +198,16 @@ Work in phase order unless a dependency is explicitly resolved another way. A ta
 
 ## Phase 6 — Routes
 
-- [ ] **P0** Implement owner-scoped route CRUD API and validation. (`RTE-4`, `RTE-5`)
-- [ ] **P0** Build route list, empty CTA, and detail map/stats. (`RTE-4`, `RTE-5`)
-- [ ] **P0** Build waypoint editor with ordered taps, undo, clear, name validation, raw polyline, and distance. (`RTE-1`, `RTE-3`)
+- [x] **P0** Implement owner-scoped route CRUD API and validation. (`RTE-4`, `RTE-5`)
+- [x] **P0** Build route list, empty CTA, and detail map/stats. (`RTE-4`, `RTE-5`)
+- [x] **P0** Build waypoint editor with ordered taps, undo, clear, name validation, raw polyline, and distance. (`RTE-1`, `RTE-3`)
+- [x] **P0** Persist owner-scoped route cache and revisioned mutation jobs locally; create/update/delete are local-first with race-safe create-to-update rebasing, privacy-minimized retained 30-day deletion tombstones, retry/backoff, foreground/connectivity triggers, and explicit conflict state. (`RTE-4`, `RTE-5`)
 - [ ] **P1** Preserve a provider-neutral routing adapter boundary without connecting a v1 routing service. (`RTE-2`; deferred)
 - [ ] **P1** Add route elevation estimate only when a later self-hosted/licensed provider is available. (`RTE-3`)
 - [ ] **P1** Support pre-save waypoint adjustment. (`RTE-6`)
-- [ ] **P0** Implement Record this route handoff: sport/overlay/route ID prefilled, no automatic start. (`RTE-8`)
-- [ ] **P0** Store route ID on resulting activity and enforce owner relationship. (`journey 5.2`)
-- [ ] **P0** Run five-waypoint raw-route and route-to-record QA; record the approved v1 snap-to-roads exception.
+- [x] **P0** Implement one-shot Record this route handoff: sport/overlay/route ID prefilled, no automatic start; consume only after durable session creation and recover the session-scoped overlay. (`RTE-8`)
+- [x] **P0** Store route ID on resulting activity and enforce owner relationship. (`journey 5.2`)
+- [ ] **P0 RELEASE GATE — physical devices required:** Run `Phase6DeviceQA.md` five-waypoint raw-route and route-to-record QA. The approved v1 exception is recorded there: raw encoded waypoint lines only, with no snap-to-roads, routing, or route-elevation provider calls.
 
 **Exit:** A user can create an unsnapped route offline-capably, save/view it, and start a recording with its overlay.
 

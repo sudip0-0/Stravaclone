@@ -30,6 +30,11 @@ import {
 } from './recording-state-machine';
 import type { RecordingSession, SequencedPoint } from './recording-types';
 import { RecordingMap } from './recording-map';
+import {
+  clearRouteHandoff,
+  consumeRouteHandoff,
+  useRouteHandoff,
+} from '../routes/route-handoff';
 
 const sports: readonly { value: ActivitySport; label: string }[] = [
   { value: 'run', label: 'Run' },
@@ -51,6 +56,7 @@ export function RecordScreen() {
   const theme = useTheme();
   const { profile } = useAppState();
   const ownerUserId = profile?.id ?? null;
+  const routeHandoff = useRouteHandoff(ownerUserId);
   const units = profile?.units ?? 'metric';
   const [sport, setSport] = useState<ActivitySport>('run');
   const [session, setSession] = useState<RecordingSession | null>(null);
@@ -64,6 +70,9 @@ export function RecordScreen() {
   const recoveryPrompted = useRef(false);
   const visibleOwner = useRef<string | null>(ownerUserId);
   visibleOwner.current = ownerUserId;
+  useEffect(() => {
+    if (!session && routeHandoff) setSport(routeHandoff.sport);
+  }, [routeHandoff, session]);
 
   const refreshHud = useCallback(async (owner: string, id?: string) => {
     const latest = id
@@ -196,6 +205,16 @@ export function RecordScreen() {
         ownerUserId,
         sport,
         permission.background === 'granted',
+        routeHandoff
+          ? {
+              routeId: routeHandoff.routeId,
+              polyline: routeHandoff.polyline,
+              waypoints: routeHandoff.waypoints,
+            }
+          : null,
+        () => {
+          if (ownerUserId) consumeRouteHandoff(ownerUserId);
+        },
       );
       setSession(started);
       setHudPoints([]);
@@ -285,6 +304,18 @@ export function RecordScreen() {
       setWarning('Could not resume. Check location settings.');
     } finally {
       setBusy(false);
+    }
+  };
+  const clearPlannedRoute = async () => {
+    clearRouteHandoff();
+    if (session && ownerUserId) {
+      await recordingRepository.setRoutePlan?.(ownerUserId, session.id, null);
+      setSession({
+        ...session,
+        routeId: null,
+        routePolyline: null,
+        routeWaypoints: [],
+      });
     }
   };
   const confirmStop = () => {
@@ -426,12 +457,27 @@ export function RecordScreen() {
           value={rate}
         />
       </View>
+      {routeHandoff && !session ? (
+        <StatusBanner message="Route ready. Starting remains under your control; Trail has not begun recording." />
+      ) : null}
+      {routeHandoff || session?.routeId ? (
+        <Button
+          label="Clear route overlay"
+          onPress={() => void clearPlannedRoute()}
+          variant="secondary"
+        />
+      ) : null}
       <RecordingMap
         following={following}
         networkEnabled={mapNetworkEnabled}
         onToggleFollow={() => setFollowing((value) => !value)}
         onToggleNetwork={() => setMapNetworkEnabled((value) => !value)}
         points={mapPoints}
+        {...(session?.routeWaypoints?.length
+          ? { routePoints: session.routeWaypoints }
+          : routeHandoff
+            ? { routePoints: routeHandoff.waypoints }
+            : {})}
       />
       {!session || session.state === 'local_saved' ? (
         <View style={styles.actions}>

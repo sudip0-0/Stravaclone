@@ -19,12 +19,14 @@ export const OPENFREEMAP_STYLE_URL =
 
 export function RecordingMap({
   points,
+  routePoints = [],
   following,
   networkEnabled,
   onToggleFollow,
   onToggleNetwork,
 }: {
   points: readonly SequencedPoint[];
+  routePoints?: readonly { latitude: number; longitude: number }[];
   following: boolean;
   networkEnabled: boolean;
   onToggleFollow: () => void;
@@ -32,6 +34,20 @@ export function RecordingMap({
 }) {
   const theme = useTheme();
   const nativeMapAvailable = MapLibreGL !== null;
+  const routeShape = useMemo(
+    () => ({
+      type: 'Feature' as const,
+      properties: {},
+      geometry: {
+        type: 'LineString' as const,
+        coordinates: routePoints.map((point) => [
+          point.longitude,
+          point.latitude,
+        ]),
+      },
+    }),
+    [routePoints],
+  );
   const shape = useMemo(
     () => ({
       type: 'Feature' as const,
@@ -63,6 +79,19 @@ export function RecordingMap({
             {...(following ? { trackUserLocation: 'default' as const } : {})}
           />
           <MapLibreGL.UserLocation accuracy animated heading />
+          {routePoints.length > 1 ? (
+            <MapLibreGL.GeoJSONSource data={routeShape} id="planned-route">
+              <MapLibreGL.Layer
+                id="planned-route-line"
+                paint={{
+                  'line-color': '#4176A6',
+                  'line-dasharray': [2, 2],
+                  'line-width': 4,
+                }}
+                type="line"
+              />
+            </MapLibreGL.GeoJSONSource>
+          ) : null}
           {points.length > 1 ? (
             <MapLibreGL.GeoJSONSource data={shape} id="recording-route">
               <MapLibreGL.Layer

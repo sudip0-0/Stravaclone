@@ -9,6 +9,7 @@ import { recordingRepository } from './src/storage/recording-database';
 import { stopNativeCollection } from './src/services/recording-location';
 import { ActivitySyncRuntime } from './src/features/activity-sync/sync-runtime';
 import { PhotoSyncRuntime } from './src/features/photos/photo-sync-runtime';
+import { RouteSyncRuntime } from './src/features/routes/route-sync-runtime';
 
 const draftReporter = new RecordingDraftStateReporter(recordingRepository);
 const recordingLifecycle = new RecordingAccountLifecycleService(
@@ -27,8 +28,10 @@ export default function App() {
       >
         <ActivitySyncRuntime>
           <PhotoSyncRuntime>
-            <StatusBar style="auto" />
-            <RootNavigation />
+            <RouteSyncRuntime>
+              <StatusBar style="auto" />
+              <RootNavigation />
+            </RouteSyncRuntime>
           </PhotoSyncRuntime>
         </ActivitySyncRuntime>
       </AppStateProvider>

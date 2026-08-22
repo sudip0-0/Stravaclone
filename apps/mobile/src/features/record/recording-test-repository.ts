@@ -46,6 +46,9 @@ export class MemoryRecordingRepository implements RecordingRepository {
       id: input.id,
       ownerUserId: input.ownerUserId,
       sport: input.sport,
+      routeId: input.routeId ?? null,
+      routePolyline: input.routePolyline ?? null,
+      routeWaypoints: input.routeWaypoints ?? [],
       backgroundEnabled: input.backgroundEnabled,
       state: 'recording',
       createdAtMs: input.nowMs,
@@ -279,6 +282,24 @@ export class MemoryRecordingRepository implements RecordingRepository {
     };
     this.sessions.set(id, next);
     return next;
+  }
+  async setRoutePlan(
+    owner: string,
+    id: string,
+    route: {
+      routeId: string;
+      polyline: string;
+      waypoints: readonly { latitude: number; longitude: number }[];
+    } | null,
+  ) {
+    const session = await this.getSession(owner, id);
+    if (!session) throw new Error('missing session');
+    this.sessions.set(id, {
+      ...session,
+      routeId: route?.routeId ?? null,
+      routePolyline: route?.polyline ?? null,
+      routeWaypoints: route?.waypoints ?? [],
+    });
   }
   async saveLocally(owner: string, id: string, _job: string, nowMs: number) {
     const session = await this.getSession(owner, id);

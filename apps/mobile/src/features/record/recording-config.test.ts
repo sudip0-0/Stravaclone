@@ -92,9 +92,20 @@ describe('native recording configuration', () => {
       'recording_pauses',
       'sync_jobs',
       'pending_photos',
+      'cached_routes',
+      'route_sync_jobs',
     ])
       expect(database).toContain(`TABLE IF NOT EXISTS ${table}`);
     expect(database).toContain('PRAGMA user_version = 1');
+    expect(database).toContain('PRAGMA user_version = 10');
+    expect(database).toContain('route_waypoints_json');
+    expect(database).toContain('ADD COLUMN revision INTEGER');
+    expect(database).toContain('ADD COLUMN deleted_at_ms INTEGER');
+    expect(database).toContain('ROUTE_TOMBSTONE_RETENTION_MS');
+    expect(database).toContain(
+      "SET name='',sport_hint=NULL,waypoints_json='[]',polyline='',distance_m=0",
+    );
+    expect(database).toContain('...recordingRoutePayload(session)');
     expect(database).toContain('withExclusiveTransactionAsync');
     expect(database).toContain('transaction.execAsync(sql)');
     expect(database).toContain('this.migrationPromise = null');
@@ -102,6 +113,12 @@ describe('native recording configuration', () => {
     expect(database).toContain('one_active_recording_per_owner');
     expect(database).toContain('owner_cleanup_markers');
     expect(database).toContain("'prepared','confirmed','unresolved'");
+    expect(database).toContain(
+      "'DELETE FROM route_sync_jobs WHERE owner_user_id=?'",
+    );
+    expect(database).toContain(
+      "'DELETE FROM cached_routes WHERE owner_user_id=?'",
+    );
     expect(database).toContain("WHERE state='confirmed'");
     expect(database).toContain('result.changes !== 1');
     expect(database).toContain('task_payload_overflow');

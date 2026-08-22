@@ -27,12 +27,12 @@ import {
 } from '../features/profile/profile-screens';
 import { ActivityStack } from '../features/activities/activity-screens';
 import { RecordScreen } from '../features/record/record-screen';
+import { RoutesStack } from '../features/routes/route-screens';
 import { useAppState } from '../state/app-state';
 import { useTheme } from '../theme/tokens';
 
 const Auth = createNativeStackNavigator<AuthParamList>();
 const Tabs = createBottomTabNavigator();
-const Basic = createNativeStackNavigator();
 const You = createNativeStackNavigator<YouParamList>();
 
 function LoadingScreen() {
@@ -84,24 +84,6 @@ function SessionRetryScreen() {
       <Body>{detail}</Body>
       <Button label="Try again" onPress={() => void retrySession()} />
     </View>
-  );
-}
-function Placeholder({ title }: { title: string }) {
-  const theme = useTheme();
-  return (
-    <View style={[styles.page, { backgroundColor: theme.background }]}>
-      <ScreenTitle>{title}</ScreenTitle>
-      <Body>{title} features are not available in this build.</Body>
-    </View>
-  );
-}
-function BasicStack({ title }: { title: string }) {
-  return (
-    <Basic.Navigator screenOptions={{ headerShown: false }}>
-      <Basic.Screen name={`${title}Home`}>
-        {() => <Placeholder title={title} />}
-      </Basic.Screen>
-    </Basic.Navigator>
   );
 }
 function YouStack() {
@@ -169,9 +151,7 @@ function Shell() {
       >
         <Tabs.Screen name="Record" component={RecordScreen} />
         <Tabs.Screen component={ActivityStack} name="Activity" />
-        <Tabs.Screen name="Routes">
-          {() => <BasicStack title="Routes" />}
-        </Tabs.Screen>
+        <Tabs.Screen component={RoutesStack} name="Routes" />
         <Tabs.Screen component={YouStack} name="You" />
       </Tabs.Navigator>
     </View>

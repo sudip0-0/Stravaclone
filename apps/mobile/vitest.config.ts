@@ -13,6 +13,7 @@ export default defineConfig({
         'src/features/activity-sync/sync-engine.ts',
         'src/features/activities/activity-model.ts',
         'src/features/photos/{photo-gallery-model,photo-sync-engine}.ts',
+        'src/features/routes/{recording-route,route-cache,route-handoff,route-model,route-sync}.ts',
         'src/features/record/{location-adapter-policy,location-pipeline,permission-policy,recording-format,recording-service,recording-state-machine}.ts',
         'src/state/{recording-account-lifecycle,recording-draft-reporter}.ts',
       ],

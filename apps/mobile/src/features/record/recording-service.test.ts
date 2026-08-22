@@ -72,6 +72,70 @@ describe('owner-bound durable recording coordinator', () => {
       state: 'paused',
     });
   });
+  it('consumes a route exactly after durable session creation and recovers its overlay through native failure', async () => {
+    const repository = new MemoryRecordingRepository();
+    let consumed = 0;
+    const coordinator = new RecordingCoordinator(
+      repository,
+      {
+        start: async () => {
+          throw new Error('native');
+        },
+        stop: async () => {},
+      },
+      { create: () => 'routed' },
+    );
+    const route = {
+      routeId: 'route-1',
+      polyline: 'encoded',
+      waypoints: [
+        { latitude: 1, longitude: 2 },
+        { latitude: 2, longitude: 3 },
+      ],
+    };
+    await expect(
+      coordinator.start(OWNER, 'ride', false, route, () => consumed++),
+    ).rejects.toThrow('native');
+    expect(consumed).toBe(1);
+    expect(await coordinator.initialize(OWNER)).toMatchObject({
+      routeId: 'route-1',
+      routePolyline: 'encoded',
+      routeWaypoints: route.waypoints,
+      state: 'paused',
+    });
+    await repository.setRoutePlan(OWNER, 'routed', null);
+    expect(await repository.getSession(OWNER, 'routed')).toMatchObject({
+      routeId: null,
+      routeWaypoints: [],
+    });
+  });
+  it('never inherits a consumed route into the next new recording', async () => {
+    const { coordinator } = setup();
+    const first = await coordinator.start(OWNER, 'run', false, {
+      routeId: 'one-shot',
+      polyline: 'encoded',
+      waypoints: [{ latitude: 0, longitude: 0 }],
+    });
+    await coordinator.discard(first);
+    const second = await coordinator.start(OWNER, 'walk', false);
+    expect(second.routeId).toBeNull();
+    expect(second.routeWaypoints).toEqual([]);
+  });
+  it('does not consume a route when durable session creation fails', async () => {
+    const { coordinator } = setup();
+    await coordinator.start(OWNER, 'run', false);
+    let consumed = 0;
+    await expect(
+      coordinator.start(
+        OWNER,
+        'run',
+        false,
+        { routeId: 'old', polyline: 'x', waypoints: [] },
+        () => consumed++,
+      ),
+    ).rejects.toThrow('active session exists');
+    expect(consumed).toBe(0);
+  });
   it('pauses immediately and excludes paused points/time', async () => {
     const { coordinator, repository, clock } = setup();
     const started = await coordinator.start(OWNER, 'walk', false);

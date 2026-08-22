@@ -91,15 +91,25 @@ export class RecordingCoordinator {
     ownerUserId: string,
     sport: ActivitySport,
     backgroundEnabled: boolean,
+    route: {
+      routeId: string;
+      polyline: string;
+      waypoints: readonly { latitude: number; longitude: number }[];
+    } | null = null,
+    onSessionCreated: () => void = () => undefined,
   ): Promise<RecordingSession> {
     const nowMs = this.clock.now();
     const recording = await this.repository.createRecordingSession({
       id: this.ids.create(),
       ownerUserId,
       sport,
+      routeId: route?.routeId ?? null,
+      routePolyline: route?.polyline ?? null,
+      routeWaypoints: route?.waypoints ?? [],
       backgroundEnabled,
       nowMs,
     });
+    onSessionCreated();
     // Native registration follows the durable row. Failure immediately exposes a resumable paused session.
     try {
       await this.location.start(recording);
