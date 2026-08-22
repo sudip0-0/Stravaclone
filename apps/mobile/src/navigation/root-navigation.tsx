@@ -25,6 +25,7 @@ import {
   YouScreen,
   type YouParamList,
 } from '../features/profile/profile-screens';
+import { RecordScreen } from '../features/record/record-screen';
 import { useAppState } from '../state/app-state';
 import { useTheme } from '../theme/tokens';
 
@@ -48,6 +49,24 @@ function LoadingScreen() {
       <Text style={[styles.loading, { color: theme.textPrimary }]}>
         Opening Trail…
       </Text>
+    </View>
+  );
+}
+function CleanupRequiredScreen() {
+  const { retryRequiredCleanup } = useAppState();
+  const theme = useTheme();
+  return (
+    <View style={[styles.center, { backgroundColor: theme.background }]}>
+      <ScreenTitle>Local cleanup required</ScreenTitle>
+      <Body>
+        The account was deleted on the server, but Trail could not safely
+        preserve or complete local cleanup. Stay here and retry; account
+        switching is blocked.
+      </Body>
+      <Button
+        label="Retry local cleanup"
+        onPress={() => void retryRequiredCleanup()}
+      />
     </View>
   );
 }
@@ -147,9 +166,7 @@ function Shell() {
           ),
         })}
       >
-        <Tabs.Screen name="Record">
-          {() => <BasicStack title="Record" />}
-        </Tabs.Screen>
+        <Tabs.Screen name="Record" component={RecordScreen} />
         <Tabs.Screen name="Activity">
           {() => <BasicStack title="Activity" />}
         </Tabs.Screen>
@@ -167,6 +184,7 @@ export function RootNavigation() {
   const theme = useTheme();
   if (phase === 'restoring') return <LoadingScreen />;
   if (phase === 'session-retry') return <SessionRetryScreen />;
+  if (phase === 'cleanup-required') return <CleanupRequiredScreen />;
   const navigationTheme = {
     ...(theme.background === '#101512' ? DarkTheme : DefaultTheme),
     colors: {

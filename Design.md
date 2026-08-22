@@ -238,3 +238,17 @@ Verify on a physical iOS and Android device before Phase 2 UI acceptance:
 - Architecture mobile/auth/session boundaries: §§4, 7, 8.
 
 This file specifies presentation and interaction only. Secure storage, refresh/replay, provider verification/linking, local draft queries, logout revocation, persistence, and API error mapping remain owned by the corresponding feature services; React components must not implement those rules directly.
+
+## 12. Phase 3 Record interaction contract
+
+**Status:** approved implementation contract; physical-device acceptance remains outstanding.
+
+- Pre-start places the Record heading, persistent permission/error banner, sport radio group (Run, Ride, Walk, Hike), GPS icon plus text and accuracy, three-stat HUD, live map, and Start in reading order. Sport is not editable after Start.
+- GPS states are Waiting, Good, Fair, Poor, and Stale. Icon, text, latest raw-fix accuracy metres, and semantic color are always combined. Fair/Poor/Stale warns without blocking recording; rejected fixes still update this status without entering the accepted route.
+- The HUD labels elapsed, distance, and Current pace (run/walk/hike) or Current speed (ride), formats metric/imperial from the authenticated owner profile, and decays motion after a stale fix. Pause freezes elapsed immediately. Controls are text-labelled, at least 48 dp, and exposed with role/state.
+- Map networking defaults **off**. The empty map panel explains that GPS recording still works locally and that enabling OpenFreeMap sends the device IP address plus requested tile/style area, which can approximate location, to provider infrastructure subject to OpenFreeMap/provider terms and retention practices. A clear Load map with network / Turn map network off control governs requests.
+- When enabled, the map uses the OpenFreeMap Liberty style, native location puck, accepted-point polyline, and a stateful Follow control. A visible overlay links both OpenStreetMap copyright and OpenFreeMap. When the native MapLibre module is absent (including Expo Go), show “Map unavailable in this build” and explicitly say GPS recording still works; never render a fake map. Required attribution remains visible whenever map networking is enabled.
+- Start first explains staged foreground/background location. Foreground denial blocks with retry/settings guidance. Background denial selects a true foreground-only watcher that suspends when Trail is not visible and explicitly says recording cannot continue locked; it never implies background capture. Android notification denial is separately warned. OEM battery guidance is informational and non-blocking.
+- Recording shows Pause and Stop; Paused shows Resume and Stop. Stop requires confirmation and leads to Save locally/Discard. Save is disabled with the 30-second-or-50-metre rule stated. Discard has a second consequence confirmation.
+- Relaunch with a durable recording/paused session presents Resume and Discard. Limit-triggered stops name the 12-hour or 100,000-point reason. A completed save says “Saved locally. Waiting to upload.” without claiming server upload.
+- Real-device VoiceOver/TalkBack, maximum text, map attribution visibility, locked-screen recording, and permission sheets remain release evidence gates in `Phase3DeviceQA.md`; automated/static checks are not substitutes.

@@ -238,6 +238,13 @@ Make recording offline-first, crash-safe, background-capable, and understandable
 - Phase 1 domain rules/contracts; Phase 2 authenticated shell and secure identity.
 - Expo development builds/native configuration; simulator alone is insufficient.
 
+### Local implementation status
+
+- Pure state/clock/crash-window/point-limit/owner-isolation/permission/unit-format/payload tests, in-memory repository contracts, and static config/accessibility checks are automated. Coverage percentages refer only to the selected modules in `apps/mobile/vitest.config.ts`, not native SQLite, TaskManager, MapLibre, foreground services, or OS lifecycle execution.
+- Owner-scoped local records, per-owner active uniqueness, terminal collector quarantine, prepared/confirmed/unresolved deletion intent, exact-row DB confirmation plus this-device-only SecureStore fallback, cleanup-required blocking retry, confirmed-only cleanup retry, 30-day abandoned-draft retention, 90-day unconfirmed-intent expiry without data deletion, SQLCipher configuration/key handling, atomic retryable migrations, bounded display queries, direct-recoverable creation, durable-before-native stop, idempotent save, generation-safe foreground fallback, ordered bounded persistence retries with explicit durable failure, total task-payload bounds plus lossless chunking, monotonic raw-fix HUD state, and default-off map networking are implemented in code. Native SQLite encryption/migration/cleanup/fault injection, OS process death, watcher races, and network-request evidence remain unverified until development-build device QA.
+- Official Expo SDK 57 modules use Expo’s current expected patches under an explicit compatibility/security exception to the normal seven-day dependency-age policy.
+- All real-device background, SQLCipher, process-death, FGS, map, accessibility, and battery gates remain **blocked** and unpassed. Expo Location exposes one privacy-safe persistent Android FGS notification but does not guarantee dynamic elapsed/distance updates; REC-4’s dynamic notification remains a device/custom-native gate. Evidence belongs in `Phase3DeviceQA.md`; mocks, exports, repository contracts, and generated config are not device-success evidence.
+
 ### Exact work packages and assigned roles
 
 1. **P3.1 Durable state machine — `swe-worker`**

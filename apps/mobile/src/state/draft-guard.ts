@@ -1,7 +1,7 @@
 export type DraftState = 'clear' | 'recording' | 'pending-upload';
 
 export interface DraftStateReporter {
-  getDraftState(): Promise<DraftState>;
+  getDraftState(ownerUserId: string): Promise<DraftState>;
 }
 
 export type SignOutDecision =
@@ -21,8 +21,9 @@ export type SignOutDecision =
 
 export async function evaluateSignOut(
   reporter: DraftStateReporter,
+  ownerUserId: string,
 ): Promise<SignOutDecision> {
-  const state = await reporter.getDraftState();
+  const state = await reporter.getDraftState(ownerUserId);
   if (state === 'recording')
     return {
       allowed: false,

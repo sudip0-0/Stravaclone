@@ -34,7 +34,10 @@ describe('production app profile store and draft reporter wiring', () => {
     const injected = { getDraftState: vi.fn(async () => 'recording' as const) };
     expect(resolveDraftReporter(injected)).toBe(injected);
     expect(resolveDraftReporter()).toBe(clearDraftReporter);
-    const decision = await evaluateSignOut(resolveDraftReporter(injected));
+    const decision = await evaluateSignOut(
+      resolveDraftReporter(injected),
+      user('metric').id,
+    );
     expect(decision).toMatchObject({ allowed: false, destination: 'Record' });
     expect(injected.getDraftState).toHaveBeenCalledTimes(1);
   });
@@ -45,7 +48,10 @@ describe('production app profile store and draft reporter wiring', () => {
     'blocks sign-out for %s without clearing draft data',
     async (draft, destination) => {
       const getDraftState = vi.fn(async () => draft);
-      const decision = await evaluateSignOut({ getDraftState });
+      const decision = await evaluateSignOut(
+        { getDraftState },
+        user('metric').id,
+      );
       expect(decision.allowed).toBe(false);
       if (!decision.allowed) expect(decision.destination).toBe(destination);
       expect(getDraftState).toHaveBeenCalledTimes(1);

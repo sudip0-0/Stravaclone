@@ -113,37 +113,40 @@ Work in phase order unless a dependency is explicitly resolved another way. A ta
 
 ### 3.1 Local state and services
 
-- [ ] **P0** Add mobile SQLite schema/migrations for recording sessions, points, sync jobs, and pending photos.
-- [ ] **P0** Implement Idle → Starting → Recording ⇄ Paused → Stopping → Saving lifecycle. (`REC-1`)
-- [ ] **P0** Allocate stable client UUID and persist session metadata before location collection.
-- [ ] **P0** Checkpoint accepted points at least every five seconds or batch threshold. (`REC-7`)
-- [ ] **P0** Restore after process death and present Resume/Discard without losing buffered points. (`REC-7`, recovery journey)
-- [ ] **P0** Enforce 12-hour stop and save threshold of 30 seconds or 50 metres. (`REC-14`, `Q8`)
-- [ ] **P0** Make discard confirmed, local-only, and complete. (`REC-9`)
+- [x] **P0** Add mobile SQLite schema/migrations for recording sessions, points, sync jobs, and pending photos. (Local migration/config and repository contract tests pass; native adapter remains in device QA.)
+- [x] **P0** Implement Idle → Starting → Recording ⇄ Paused → Stopping → Saving lifecycle. (`REC-1`)
+- [x] **P0** Allocate stable client UUID and persist session metadata before location collection.
+- [x] **P0** Checkpoint accepted points at least every five seconds or batch threshold. (`REC-7`; accepted task batches are transacted immediately.)
+- [x] **P0** Implement deterministic reconciliation for legacy `starting`/`stopping`/`saving` crash windows and owner-scoped Resume/Discard UI. (`REC-7`; pure crash-window tests pass. Real process-death evidence remains blocked in §3.4.)
+- [x] **P0** Enforce 12-hour stop and save threshold of 30 seconds or 50 metres. (`REC-14`, `Q8`)
+- [x] **P0** Make discard confirmed, local-only, and complete. (`REC-9`)
+- [x] **P0** Owner-scope local drafts, retain pending uploads until sync, retain recoverable non-pending drafts at least 24 hours, and purge abandoned non-pending drafts after 30 days. (Pure/repository contracts pass; native SQLCipher cleanup remains blocked.)
+- [x] **P0** Add prepared/confirmed/unresolved account-deletion intent, exact-row SQLite confirmation, this-device-only SecureStore confirmed fallback, confirmed-only startup cleanup, explicit cleanup-required blocking/retry state, ambiguous-failure preservation/manual resolution, and 90-day intent expiry without marker-authorized data deletion; block deletion before GPS interruption when active/pending owner work exists. (Deterministic confirmation/fallback/purge crash-window tests pass; native failure injection remains blocked.)
+- [x] **P0** Add ordered bounded foreground persistence retries and explicit durable pause/error on exhaustion/overflow; reject oversized task payloads before materialization and process valid payloads losslessly in sequential chunks. (Pure queue/payload and repository contracts pass; native SQLite fault injection remains blocked.)
 
 ### 3.2 Permissions and background execution
 
-- [ ] **P0** Implement staged When In Use/background location education and denial/settings states. (`REC-13`)
-- [ ] **P0** Configure iOS background location and exact purpose strings. (`REC-4`, PRD §12)
-- [ ] **P0** Configure Android location foreground service and persistent elapsed/distance notification. (`REC-4`)
-- [ ] **P0** Handle Android 13+ notification permission and degraded/warning behavior.
-- [ ] **P1** Add OEM battery optimization guidance without blocking recording. (`REC-10`)
+- [x] **P0** Implement staged When In Use/background location education and denial/settings states. (`REC-13`; deterministic policy tests pass.)
+- [x] **P0** Configure iOS background location and exact purpose strings. (`REC-4`, PRD §12; generated Expo config inspected locally.)
+- [ ] **P0 BLOCKED — device/custom-native validation required:** Configure Android location foreground service. Expo provides one privacy-safe persistent FGS notification, but dynamic elapsed/distance content cannot be guaranteed without re-registering the task; do not claim the REC-4 dynamic-notification criterion complete.
+- [x] **P0** Handle Android 13+ notification permission and degraded/warning behavior.
+- [x] **P1** Add OEM battery optimization guidance without blocking recording. (`REC-10`)
 
 ### 3.3 Record UI
 
-- [ ] **P0** Implement pre-start sport selector for run/ride/walk/hike. (`REC-2`)
-- [ ] **P0** Implement GPS quality state using icon/text plus accuracy value. (`REC-5`, accessibility)
-- [ ] **P0** Implement elapsed time, distance, current pace/speed HUD. (`REC-5`)
-- [ ] **P0** Implement MapLibre live map, in-progress polyline, location puck, and follow toggle. (`REC-6`)
-- [ ] **P0** Preserve visible attribution and accessible controls at supported text sizes. (`SET-2`, accessibility)
-- [ ] **P0** Implement stop confirmation and save/discard sheet.
+- [x] **P0** Implement pre-start sport selector for run/ride/walk/hike. (`REC-2`)
+- [x] **P0** Implement GPS quality state using icon/text plus accuracy value. (`REC-5`, accessibility)
+- [x] **P0** Implement elapsed time, distance, current pace/speed HUD. (`REC-5`)
+- [x] **P0** Implement MapLibre live map, in-progress polyline, location puck, follow toggle, and honest Expo Go fallback. (`REC-6`; native rendering remains in device QA.)
+- [x] **P0** Preserve visible OpenStreetMap/OpenFreeMap attribution and accessible controls. (`SET-2`, static accessibility checks pass; max-text device gate remains blocked.)
+- [x] **P0** Implement stop confirmation and local save/confirmed discard actions.
 
 ### 3.4 Device verification
 
-- [ ] **P0** Locked-screen 20-minute activity on current/previous iOS target devices. (`REC-4`)
-- [ ] **P0** Locked-screen 20-minute activity on representative Android API 26+ and current device.
-- [ ] **P0** Verify phone call/app switch, poor GPS, denied permissions, and process kill/recovery.
-- [ ] **P0** Measure 60-minute battery baseline and document device/build/settings.
+- [ ] **P0 BLOCKED — physical devices required:** Locked-screen 20-minute activity on current/previous iOS target devices. (`REC-4`)
+- [ ] **P0 BLOCKED — physical devices required:** Locked-screen 20-minute activity on representative Android API 26+ and current device.
+- [ ] **P0 BLOCKED — physical devices required:** Verify phone call/app switch, poor GPS, denied permissions, and process kill/recovery.
+- [ ] **P0 BLOCKED — physical devices required:** Measure 60-minute battery baseline and document device/build/settings. Use `Phase3DeviceQA.md`; no rows are passed.
 
 **Exit:** An offline locked-screen activity can be paused, resumed after process death, and locally saved without data loss on both platforms.
 

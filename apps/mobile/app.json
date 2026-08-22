@@ -5,13 +5,50 @@
     "version": "0.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
-    "plugins": ["expo-secure-store", "expo-status-bar", "expo-font"],
+    "plugins": [
+      "expo-secure-store",
+      "expo-status-bar",
+      "expo-font",
+      ["expo-sqlite", { "useSQLCipher": true }],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Trail uses your location to record the path of your run, ride, walk, or hike.",
+          "locationAlwaysAndWhenInUsePermission": "Trail needs background location so your activity continues with the screen locked.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      ["expo-notifications", { "color": "#146C43" }],
+      "@maplibre/maplibre-react-native",
+      ["expo-build-properties", { "android": { "minSdkVersion": 26 } }]
+    ],
     "ios": {
       "bundleIdentifier": "com.trailapp.mobile",
-      "supportsTablet": true
+      "supportsTablet": true,
+      "entitlements": {
+        "com.apple.developer.default-data-protection": "NSFileProtectionCompleteUntilFirstUserAuthentication"
+      },
+      "infoPlist": {
+        "UIFileSharingEnabled": false,
+        "LSSupportsOpeningDocumentsInPlace": false,
+        "NSLocationWhenInUseUsageDescription": "Trail uses your location to record the path of your run, ride, walk, or hike.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Trail needs background location so your activity continues with the screen locked.",
+        "UIBackgroundModes": ["location"]
+      }
     },
     "android": {
-      "package": "com.trailapp.mobile"
+      "package": "com.trailapp.mobile",
+      "allowBackup": false,
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "POST_NOTIFICATIONS"
+      ]
     }
   }
 }

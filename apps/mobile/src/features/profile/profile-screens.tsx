@@ -246,8 +246,14 @@ export function ProfileScreen(): React.ReactElement {
 }
 
 export function SettingsScreen({ navigation }: Props<'Settings'>) {
-  const { profile, updateProfile, signOut, deleteAccount, draftReporter } =
-    useAppState();
+  const {
+    profile,
+    updateProfile,
+    signOut,
+    deleteAccount,
+    cancelAccountDeletionIntent,
+    draftReporter,
+  } = useAppState();
   const [error, setError] = useState<string | null>(null);
   const [showDelete, setShowDelete] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
@@ -270,7 +276,8 @@ export function SettingsScreen({ navigation }: Props<'Settings'>) {
     }
   };
   const beginSignOut = async () => {
-    const decision = await evaluateSignOut(draftReporter);
+    if (!profile) return;
+    const decision = await evaluateSignOut(draftReporter, profile.id);
     if (!decision.allowed) {
       Alert.alert(decision.title, decision.message, [
         { text: 'Stay signed in', style: 'cancel' },
@@ -310,7 +317,7 @@ export function SettingsScreen({ navigation }: Props<'Settings'>) {
   const confirmDelete = () =>
     Alert.alert(
       'Permanently delete Trail account?',
-      'Your account and server data will be deleted only after Trail confirms your current password. This cannot be undone.',
+      'Your account, server data, and this account’s local recordings, pending uploads, and photos will be deleted after Trail confirms your current password. Other accounts’ local data is not affected. This cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -335,11 +342,48 @@ export function SettingsScreen({ navigation }: Props<'Settings'>) {
                     cause.code === 'invalid_credentials')
                 )
                   setError('Current password is incorrect.');
+                else if (
+                  cause instanceof Error &&
+                  cause.message.startsWith('Finish or resolve local activities')
+                )
+                  setError(
+                    'Finish or resolve this account’s recording or pending upload before deleting the account. GPS recording was not interrupted.',
+                  );
+                else if (
+                  cause instanceof Error &&
+                  cause.message.startsWith(
+                    'Account deletion requires manual resolution',
+                  )
+                )
+                  setError(
+                    'A previous account deletion attempt is unresolved. Your local data is preserved and will not be deleted automatically. Contact support or retry after the intent expires.',
+                  );
                 else setError('Couldn’t delete your account. Try again.');
               } finally {
                 setDeleting(false);
               }
             })(),
+        },
+      ],
+    );
+  const resolveDeletionIntent = () =>
+    Alert.alert(
+      'Cancel unresolved deletion intent?',
+      'This keeps all local data and permits a new account-deletion attempt. It cannot cancel cleanup already confirmed by the server.',
+      [
+        { text: 'Keep intent', style: 'cancel' },
+        {
+          text: 'Cancel intent',
+          onPress: () =>
+            void cancelAccountDeletionIntent()
+              .then(() =>
+                setError(
+                  'Unresolved deletion intent cancelled. Local data was kept.',
+                ),
+              )
+              .catch(() =>
+                setError('Couldn’t resolve the deletion intent. Try again.'),
+              ),
         },
       ],
     );
@@ -389,6 +433,11 @@ export function SettingsScreen({ navigation }: Props<'Settings'>) {
         Account
       </Text>
       <Row title="Sign out" onPress={() => void beginSignOut()} />
+      <Row
+        title="Resolve deletion attempt"
+        value="Keeps local data"
+        onPress={resolveDeletionIntent}
+      />
       <Row danger title="Delete account" onPress={beginDelete} />
       {showDelete ? (
         <View style={styles.deleteForm}>
