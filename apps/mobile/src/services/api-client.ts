@@ -1,6 +1,8 @@
 import {
   acceptedResponseSchema,
   activityListResponseSchema,
+  calendarDayResponseSchema,
+  calendarResponseSchema,
   activityPhotosSchema,
   activitySchema,
   authResponseSchema,
@@ -8,6 +10,7 @@ import {
   routeListResponseSchema,
   routeSchema,
   signedPhotoUploadSchema,
+  statsResponseSchema,
   userSchema,
   type Activity,
   type ActivityListResponse,
@@ -20,6 +23,7 @@ import {
   type RouteListResponse,
   type SessionTokens,
   type SignedPhotoUpload,
+  type StatsQuery,
   type UpdateActivityRequest,
   type UpdateRouteRequest,
   type UpdateUserRequest,
@@ -153,6 +157,52 @@ export class ApiClient implements RefreshTransport {
     return expectResponse(
       await this.authorized(`/v1/activities?${query.toString()}`),
       activityListResponseSchema,
+    );
+  }
+  async getStats(query: StatsQuery, signal?: AbortSignal) {
+    const params = new URLSearchParams(query);
+    return expectResponse(
+      await this.authorized(
+        `/v1/stats?${params.toString()}`,
+        signal ? { signal } : {},
+      ),
+      statsResponseSchema,
+    );
+  }
+  async getCalendar(
+    year: number,
+    month: number,
+    timezone: string,
+    sport: StatsQuery['sport'],
+    signal?: AbortSignal,
+  ) {
+    const params = new URLSearchParams({
+      year: String(year),
+      month: String(month),
+      timezone,
+      sport,
+    });
+    return expectResponse(
+      await this.authorized(
+        `/v1/calendar?${params.toString()}`,
+        signal ? { signal } : {},
+      ),
+      calendarResponseSchema,
+    );
+  }
+  async getCalendarDay(
+    date: string,
+    timezone: string,
+    sport: StatsQuery['sport'],
+    signal?: AbortSignal,
+  ) {
+    const params = new URLSearchParams({ date, timezone, sport });
+    return expectResponse(
+      await this.authorized(
+        `/v1/calendar/day?${params.toString()}`,
+        signal ? { signal } : {},
+      ),
+      calendarDayResponseSchema,
     );
   }
   async getActivity(id: string): Promise<Activity> {

@@ -24,12 +24,14 @@ export function notifyActivitySavedLocally(): void {
 }
 interface SyncContextValue {
   readonly pendingCount: number;
+  readonly revision: number;
   readonly syncing: boolean;
   retry(): Promise<void>;
   refresh(): Promise<void>;
 }
 const SyncContext = createContext<SyncContextValue>({
   pendingCount: 0,
+  revision: 0,
   syncing: false,
   async retry() {},
   async refresh() {},
@@ -51,6 +53,7 @@ export function ActivitySyncRuntime({ children }: { children: ReactNode }) {
     [api],
   );
   const [pendingCount, setPendingCount] = useState(0);
+  const [revision, setRevision] = useState(0);
   const [nextAttemptAt, setNextAttemptAt] = useState<number | null>(null);
   const [syncing, setSyncing] = useState(false);
   const refreshFlight = useRef<Promise<void> | null>(null);
@@ -90,6 +93,7 @@ export function ActivitySyncRuntime({ children }: { children: ReactNode }) {
     } finally {
       setSyncing(false);
       await refresh();
+      setRevision((value) => value + 1);
     }
   }, [engine, phase, profile, refresh]);
   const retry = useCallback(async () => {
@@ -100,6 +104,7 @@ export function ActivitySyncRuntime({ children }: { children: ReactNode }) {
     } finally {
       setSyncing(false);
       await refresh();
+      setRevision((value) => value + 1);
     }
   }, [engine, profile, refresh]);
 
@@ -127,7 +132,9 @@ export function ActivitySyncRuntime({ children }: { children: ReactNode }) {
     };
   }, [trigger]);
   return (
-    <SyncContext.Provider value={{ pendingCount, syncing, retry, refresh }}>
+    <SyncContext.Provider
+      value={{ pendingCount, revision, syncing, retry, refresh }}
+    >
       {children}
     </SyncContext.Provider>
   );

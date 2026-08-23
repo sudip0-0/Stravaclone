@@ -393,6 +393,11 @@ export const activities = trailSchema.table(
       table.userId,
       table.startedAt.desc(),
     ),
+    index('activities_user_sport_started_at_idx').on(
+      table.userId,
+      table.sport,
+      table.startedAt.desc(),
+    ),
     foreignKey({
       name: 'activities_route_owner_fk',
       columns: [table.routeId, table.userId],

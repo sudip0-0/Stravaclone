@@ -11,6 +11,7 @@ import { ApplicationError } from './http/application-error.js';
 import { registerPhotoRoutes } from './photos/routes.js';
 import type { DependencyStatus, Providers } from './providers/ports.js';
 import { registerRouteRoutes } from './routes/routes.js';
+import { registerStatsRoutes } from './stats/routes.js';
 
 export interface BuildAppOptions {
   readonly config: ApiConfig;
@@ -164,6 +165,7 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
   registerActivityRoutes(app, options.config, options.providers);
   registerPhotoRoutes(app, options.config, options.providers);
   registerRouteRoutes(app, options.config, options.providers);
+  registerStatsRoutes(app, options.config, options.providers);
   let readinessCache:
     | { readonly checkedAt: number; readonly ready: boolean }
     | undefined;

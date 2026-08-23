@@ -23,6 +23,7 @@ import { ApiResponseError, mapApiError } from '../../services/errors';
 import { evaluateSignOut } from '../../state/draft-guard';
 import { useAppState } from '../../state/app-state';
 import { spacing, useTheme } from '../../theme/tokens';
+import { StatsScreen } from '../stats/stats-screen';
 import { profilePatch } from './profile-model';
 
 export type YouParamList = {
@@ -141,34 +142,23 @@ const units = [
 ] as const;
 
 export function YouScreen({ navigation }: Props<'YouHome'>) {
-  const { profile, refreshProfile } = useAppState();
   return (
-    <Page>
-      <ScreenTitle>You</ScreenTitle>
-      {!profile ? (
-        <StatusBanner
-          message="Your profile couldn’t be loaded."
-          action="Try again"
-          onAction={() => void refreshProfile()}
-        />
-      ) : (
-        <Body>{profile.display_name}</Body>
-      )}
-      <View style={styles.section}>
-        <Row
-          title="Profile"
-          value={profile?.units === 'imperial' ? 'Imperial' : 'Metric'}
-          onPress={() => navigation.navigate('Profile')}
-        />
-        <Row title="Settings" onPress={() => navigation.navigate('Settings')} />
-      </View>
-      <StatusBanner message="Training totals and calendar are not available in this build." />
-    </Page>
+    <StatsScreen
+      openActivity={(id) =>
+        navigation.getParent()?.navigate('Activity', {
+          screen: 'ActivityDetail',
+          params: { id },
+        })
+      }
+      openProfile={() => navigation.navigate('Profile')}
+      openSettings={() => navigation.navigate('Settings')}
+    />
   );
 }
 
 export function ProfileScreen(): React.ReactElement {
-  const { profile, refreshProfile, updateProfile } = useAppState();
+  const { profile, profilePhase, refreshProfile, updateProfile } =
+    useAppState();
   const [name, setName] = useState('');
   const [sport, setSport] = useState<Sport>('run');
   const [unit, setUnit] = useState<UnitSystem>('metric');
@@ -185,11 +175,18 @@ export function ProfileScreen(): React.ReactElement {
     return (
       <Page>
         <ScreenTitle>Profile</ScreenTitle>
-        <StatusBanner
-          message="Your profile couldn’t be loaded."
-          action="Try again"
-          onAction={() => void refreshProfile()}
-        />
+        {profilePhase === 'loading' ? (
+          <Body>Loading your profile…</Body>
+        ) : (
+          <StatusBanner
+            error
+            message="Your profile couldn’t be loaded."
+            action="Try again"
+            onAction={() => {
+              void refreshProfile().catch(() => undefined);
+            }}
+          />
+        )}
       </Page>
     );
   const patch = profilePatch(profile, {

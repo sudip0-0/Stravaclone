@@ -213,15 +213,16 @@ Work in phase order unless a dependency is explicitly resolved another way. A ta
 
 ## Phase 7 — Training stats and calendar
 
-- [ ] **P0** Implement owner-scoped week totals for distance, moving time, count, and elevation with all/per-sport filter. (`STA-1`)
-- [ ] **P0** Implement current year totals with the same metrics. (`STA-2`)
-- [ ] **P0** Implement locale/timezone-aware month calendar and day activity query. (`STA-3`)
-- [ ] **P1** Add previous/next week and year navigation. (`STA-4`)
-- [ ] **P0** Exclude pending local activities and show a sync banner. (`PRD §6.6`)
-- [ ] **P0** Build You stats UI, empty states, filters, and unit-aware labels.
-- [ ] **P0** Test UTC boundary, DST, locale week-start, mixed sports, deletion, and late sync.
+- [x] **P0** Implement owner-scoped week totals for distance, moving time, count, and elevation with all/per-sport filter. (`STA-1`)
+- [x] **P0** Implement current year totals with the same metrics. (`STA-2`)
+- [x] **P0** Implement locale/timezone-aware month calendar and day activity query. (`STA-3`)
+- [x] **P1** Add previous/next week and year navigation. (`STA-4`)
+- [x] **P0** Exclude pending local activities and show a sync banner. (`PRD §6.6`)
+- [x] **P0** Build You stats UI, empty states, filters, and unit-aware labels.
+- [x] **P0** Add automated UTC/year boundary, spring-forward/fall-back DST, locale week-start, mixed-sport, deletion, late-sync, request-race, profile-retry, pending/offline, focus-refresh, unit/filter, calendar-selection, and navigation-bound coverage.
+- [ ] **P0 RELEASE GATE — physical devices required:** Run and record the two-sport metric/imperial, locale, timezone, pending-sync, deletion, late-sync, offline/retry, and accessibility matrix in `Phase7DeviceQA.md` on supported iOS and Android devices.
 
-**Exit:** Two-sport weekly QA script matches activity source data in both units and across timezone boundaries.
+**Exit:** Local implementation and automated Phase 7 gates are complete. Phase 7 acceptance remains **open** until the physical-device release gate above is recorded; automated tests do not satisfy that gate.
 
 ## Phase 8 — Privacy, accessibility, reliability, and release
 

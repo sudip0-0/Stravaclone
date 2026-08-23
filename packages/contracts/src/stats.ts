@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { activitySummarySchema } from './activities.js';
 import {
   nonNegativeFiniteSchema,
   sportSchema,
@@ -7,6 +8,7 @@ import {
 
 export const statsPeriodSchema = z.enum(['week', 'year']);
 export const statsSportFilterSchema = z.union([z.literal('all'), sportSchema]);
+export type StatsSportFilter = z.infer<typeof statsSportFilterSchema>;
 
 function isIanaTimeZone(value: string): boolean {
   if (value !== 'UTC' && !/^[A-Za-z_]+(?:\/[A-Za-z0-9_+.-]+)+$/.test(value))
@@ -71,8 +73,8 @@ export const statsResponseSchema = z
   });
 
 export const calendarQuerySchema = z.strictObject({
-  year: z.number().int().min(1970).max(9999),
-  month: z.number().int().min(1).max(12),
+  year: z.coerce.number().int().min(1970).max(9999),
+  month: z.coerce.number().int().min(1).max(12),
   timezone: ianaTimeZoneSchema,
   sport: statsSportFilterSchema.default('all'),
 });
@@ -84,3 +86,18 @@ export const calendarDaySchema = z.strictObject({
 export const calendarResponseSchema = z.strictObject({
   days: z.array(calendarDaySchema).max(31),
 });
+export type CalendarResponse = z.infer<typeof calendarResponseSchema>;
+
+export const calendarDayQuerySchema = z.strictObject({
+  date: z.iso.date(),
+  timezone: ianaTimeZoneSchema,
+  sport: statsSportFilterSchema.default('all'),
+});
+export type CalendarDayQuery = z.infer<typeof calendarDayQuerySchema>;
+
+export const calendarDayResponseSchema = z.strictObject({
+  date: z.iso.date(),
+  items: z.array(activitySummarySchema).max(200),
+});
+export type CalendarDayResponse = z.infer<typeof calendarDayResponseSchema>;
+export type StatsResponse = z.infer<typeof statsResponseSchema>;

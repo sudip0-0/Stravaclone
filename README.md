@@ -1,6 +1,6 @@
 # Trail
 
-Trail is an independent iOS/Android outdoor activity application under development. The repository implements the Phase 5 baseline: authenticated accounts, durable offline activity recording/sync, private activity review, and independently retried private photo uploads. Physical-device and Cloudflare R2 release gates remain open.
+Trail is an independent iOS/Android outdoor activity application under development. The repository implements the local Phase 7 baseline: authenticated accounts, durable offline activity recording/sync, private activity review and photo uploads, raw offline routes, and synchronized owner-scoped training totals/calendar. Physical-device, provider, and release gates remain open.
 
 ## Prerequisites
 
@@ -92,7 +92,7 @@ $env:TEST_HEIC='true' # downloads a commit-pinned upstream HEIC fixture
 pnpm test:api
 ```
 
-Phase 5 physical-device and Cloudflare R2 gates are tracked in `Phase5DeviceQA.md`. HEIC is additionally blocked from release pending the LGPL/relinking and HEVC legal review in `THIRD_PARTY_NOTICES.md`; JPEG/WebP remain the shippable photo formats.
+Phase-specific physical-device gates are tracked in `Phase3DeviceQA.md` through `Phase7DeviceQA.md`; Phase 7's locale/timezone/unit matrix is not complete until its iOS and Android script is recorded. Cloudflare R2 and HEIC release gates also remain open. HEIC is blocked pending the LGPL/relinking and HEVC legal review in `THIRD_PARTY_NOTICES.md`; JPEG/WebP remain the shippable photo formats.
 
 ## Database migrations
 
@@ -103,7 +103,7 @@ pnpm --filter @trail/api db:generate
 pnpm --filter @trail/api db:migrate
 ```
 
-Migrations `0000` through `0003` are the committed foundation/Phase 1/Phase 2/Phase 4 baseline. Phase 5 is a single forward migration that preserves legacy private object-key cleanup reachability while requiring re-upload before legacy photos can become ready. For an immutable release runner, build and run the dedicated migration target:
+Migrations `0000` through `0005` are the committed foundation through Phase 7 chain. `0004` is the Phase 5 forward photo migration that preserves legacy private object-key cleanup reachability while requiring re-upload before legacy photos can become ready. `0005` adds the owner/sport/start-time index used by bounded Phase 7 stats queries; it does not rewrite or roll up activity data. Schema integration tests explicitly apply `0005` after `0004` and verify preserved activity data. For an immutable release runner, build and run the dedicated migration target:
 
 ```sh
 docker build --target migration -t trail-api-migration:local .

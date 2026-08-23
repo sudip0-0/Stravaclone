@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
   type ReactNode,
@@ -20,7 +21,7 @@ import {
   CleanupRequiredError,
   executeOwnerDeletion,
 } from './recording-account-lifecycle';
-import { AppProfileStore } from './profile-state';
+import { AppProfileStore, type ProfileLifecyclePhase } from './profile-state';
 
 export type SessionPhase =
   | 'restoring'
@@ -32,6 +33,7 @@ interface AppContextValue {
   api: ApiClient;
   phase: SessionPhase;
   profile: User | null;
+  profilePhase: ProfileLifecyclePhase;
   draftReporter: DraftStateReporter;
   sessionRetryReason: SessionRetryReason | null;
   terminalMessage: string | null;
@@ -83,11 +85,13 @@ export function AppStateProvider({
     string | null
   >(null);
   const profileStore = useMemo(() => new AppProfileStore(), []);
-  const profile = useSyncExternalStore(
+  const authGeneration = useRef(0);
+  const profileState = useSyncExternalStore(
     profileStore.subscribe,
     profileStore.get,
     profileStore.get,
   );
+  const { phase: profilePhase, profile } = profileState;
   const draftReporter = useMemo(
     () => resolveDraftReporter(providedDraftReporter),
     [providedDraftReporter],
@@ -98,9 +102,10 @@ export function AppStateProvider({
       new SecureSessionStore(),
       api,
       () => {
-        const ownerUserId = profileStore.get()?.id ?? null;
+        authGeneration.current += 1;
+        const ownerUserId = profileStore.get().profile?.id ?? null;
         void recordingLifecycle.handleTerminalAuthLoss(ownerUserId);
-        profileStore.set(null);
+        profileStore.clear();
         setTerminalMessage('Your session ended. Please sign in again.');
         setPhase('signed-out');
       },
@@ -111,7 +116,14 @@ export function AppStateProvider({
   }, [profileStore, recordingLifecycle]);
 
   const refreshProfile = useCallback(async () => {
-    profileStore.set(await services.api.getProfile());
+    const generation = authGeneration.current;
+    await profileStore.refresh(
+      () => services.api.getProfile(),
+      generation,
+      (candidate) =>
+        candidate === authGeneration.current &&
+        services.session.current !== null,
+    );
   }, [profileStore, services]);
   const restoreSession = useCallback(async () => {
     try {
@@ -122,6 +134,8 @@ export function AppStateProvider({
     }
     const result = await services.session.restore();
     if (result === 'signed-out') {
+      authGeneration.current += 1;
+      profileStore.clear();
       setPhase('signed-out');
       return;
     }
@@ -129,13 +143,14 @@ export function AppStateProvider({
       setPhase('session-retry');
       return;
     }
+    authGeneration.current += 1;
     setPhase('signed-in');
     try {
       await refreshProfile();
     } catch {
       /* Shell keeps a visible profile retry state. */
     }
-  }, [recordingLifecycle, refreshProfile, services]);
+  }, [profileStore, recordingLifecycle, refreshProfile, services]);
   useEffect(() => {
     void restoreSession();
   }, [restoreSession]);
@@ -144,13 +159,15 @@ export function AppStateProvider({
     response: Awaited<ReturnType<ApiClient['login']>>,
   ) => {
     await recordingLifecycle.runStartupMaintenance();
+    authGeneration.current += 1;
+    profileStore.clear();
     await services.session.establish(response.session);
     setTerminalMessage(null);
     setPhase('signed-in');
     try {
       await refreshProfile();
     } catch {
-      profileStore.set(null);
+      /* The signed-in shell exposes the profile error and retry action. */
     }
   };
 
@@ -158,6 +175,7 @@ export function AppStateProvider({
     api: services.api,
     phase,
     profile,
+    profilePhase,
     draftReporter,
     sessionRetryReason: services.session.retryState,
     terminalMessage,
@@ -172,8 +190,9 @@ export function AppStateProvider({
           cleanupRequiredOwnerId,
         );
       if (!authorized) throw new CleanupRequiredError();
+      authGeneration.current += 1;
       await services.session.clear();
-      profileStore.set(null);
+      profileStore.clear();
       setCleanupRequiredOwnerId(null);
       setPhase('signed-out');
     },
@@ -185,30 +204,38 @@ export function AppStateProvider({
       establish(await services.api.confirmRegistration(token)),
     signOut: async () => {
       const current = services.session.current;
-      const ownerUserId = profileStore.get()?.id;
+      const ownerUserId = profileStore.get().profile?.id;
       if (!current || !ownerUserId) return;
       if ((await draftReporter.getDraftState(ownerUserId)) !== 'clear')
         throw new Error(
           'Resolve this account’s local recording before signing out.',
         );
       await services.api.logout(current.refresh_token);
+      authGeneration.current += 1;
       await services.session.clear();
-      profileStore.set(null);
+      profileStore.clear();
       setPhase('signed-out');
     },
     refreshProfile,
     updateProfile: async (patch) => {
+      const generation = authGeneration.current;
+      const ownerUserId = profileStore.get().profile?.id;
       const updated = await services.api.updateProfile(patch);
-      profileStore.set(updated);
+      if (
+        generation === authGeneration.current &&
+        ownerUserId === updated.id &&
+        services.session.current !== null
+      )
+        profileStore.set(updated);
       return updated;
     },
     cancelAccountDeletionIntent: async () => {
-      const ownerUserId = profileStore.get()?.id;
+      const ownerUserId = profileStore.get().profile?.id;
       if (!ownerUserId) throw new Error('No authenticated owner.');
       await recordingLifecycle.cancelOwnerDeletion(ownerUserId);
     },
     deleteAccount: async (password) => {
-      const ownerUserId = profileStore.get()?.id;
+      const ownerUserId = profileStore.get().profile?.id;
       if (!ownerUserId) throw new Error('No authenticated owner.');
       try {
         await executeOwnerDeletion(
@@ -216,8 +243,9 @@ export function AppStateProvider({
           ownerUserId,
           () => services.api.deleteAccount(password),
           async () => {
+            authGeneration.current += 1;
             await services.session.clear();
-            profileStore.set(null);
+            profileStore.clear();
             setPhase('signed-out');
           },
         );

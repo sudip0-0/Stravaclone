@@ -131,7 +131,7 @@ describeWithPostgres('Trail PostgreSQL schema', () => {
     }
   }, 30_000);
 
-  it('upgrades committed Phase 1 data through the single final Phase 5 migration', async () => {
+  it('upgrades committed data through Phase 5 then explicitly applies Phase 7 without data loss', async () => {
     const upgradeDatabaseName = `trail_phase2_upgrade_${process.pid}_${Date.now()}`;
     await adminClient.unsafe(`CREATE DATABASE "${upgradeDatabaseName}"`);
     const upgradeUrl = new URL(baseDatabaseUrl!);
@@ -172,6 +172,18 @@ describeWithPostgres('Trail PostgreSQL schema', () => {
         values (${phase1Id},${phase2ActivityId},${uploadingPhotoId},${legacyKey(uploadingPhotoId)})
       `;
       await executeMigrationFile(upgradeClient, '0004_phase5_photos.sql');
+      expect(
+        await upgradeClient`select count(*)::integer as count from trail.activities where id=${phase2ActivityId}`,
+      ).toEqual([{ count: 1 }]);
+      await executeMigrationFile(upgradeClient, '0005_phase7_stats.sql');
+      const phase7Indexes = await upgradeClient<{ indexname: string }[]>`
+        select indexname from pg_indexes
+        where schemaname='trail' and tablename='activities'
+          and indexname='activities_user_sport_started_at_idx'
+      `;
+      expect(phase7Indexes).toEqual([
+        { indexname: 'activities_user_sport_started_at_idx' },
+      ]);
       const migratedActivity = await upgradeClient<{ ingest_hash: string }[]>`
         select ingest_hash from trail.activities where id=${phase2ActivityId}
       `;
@@ -266,7 +278,7 @@ describeWithPostgres('Trail PostgreSQL schema', () => {
       from pg_constraint
       where conrelid = 'trail.activities'::regclass and contype = 'p'
     `;
-    expect(migrationRows[0]?.count).toBe(5);
+    expect(migrationRows[0]?.count).toBe(6);
     expect(activityColumns.map((row) => row.column_name)).toContain('id');
     expect(activityColumns.map((row) => row.column_name)).not.toContain(
       'client_id',

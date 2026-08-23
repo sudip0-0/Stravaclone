@@ -27,8 +27,56 @@ describe('production app profile store and draft reporter wiring', () => {
     store.subscribe(listener);
     store.set(user('metric'));
     store.set(user('imperial'));
-    expect(store.get()?.units).toBe('imperial');
+    expect(store.get().profile?.units).toBe('imperial');
     expect(listener).toHaveBeenCalledTimes(2);
+  });
+  it('starts in the explicit initial profile loading state', () => {
+    expect(new AppProfileStore().get()).toEqual({
+      phase: 'loading',
+      profile: null,
+    });
+  });
+  it('exposes confirmed profile failure and succeeds after an awaited retry', async () => {
+    const store = new AppProfileStore();
+    const sessionGeneration = 1;
+    const isCurrentSession = (candidate: number) =>
+      candidate === sessionGeneration;
+
+    await expect(
+      store.refresh(
+        async () => Promise.reject(new Error('offline')),
+        sessionGeneration,
+        isCurrentSession,
+      ),
+    ).rejects.toThrow('offline');
+    expect(store.get()).toEqual({ phase: 'error', profile: null });
+
+    await store.refresh(
+      async () => user('metric'),
+      sessionGeneration,
+      isCurrentSession,
+    );
+    expect(store.get()).toEqual({ phase: 'ready', profile: user('metric') });
+  });
+  it('ignores a stale profile response after the authenticated session changes', async () => {
+    const store = new AppProfileStore();
+    let resolveProfile!: (profile: User) => void;
+    const response = new Promise<User>((resolve) => {
+      resolveProfile = resolve;
+    });
+    let sessionGeneration = 1;
+    const refresh = store.refresh(
+      () => response,
+      sessionGeneration,
+      (candidate) => candidate === sessionGeneration,
+    );
+
+    sessionGeneration += 1;
+    store.clear();
+    resolveProfile(user('metric'));
+    await refresh;
+
+    expect(store.get()).toEqual({ phase: 'loading', profile: null });
   });
   it('uses an injected production reporter and defaults explicitly to clear until Phase 3', async () => {
     const injected = { getDraftState: vi.fn(async () => 'recording' as const) };
