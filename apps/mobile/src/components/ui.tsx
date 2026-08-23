@@ -83,12 +83,14 @@ export function Button({
   variant = 'primary',
   busy = false,
   disabled = false,
+  accessibilityHint,
 }: {
   label: string;
   onPress: () => void;
   variant?: 'primary' | 'secondary' | 'danger';
   busy?: boolean;
   disabled?: boolean;
+  accessibilityHint?: string;
 }) {
   const theme = useTheme();
   const blocked = busy || disabled;
@@ -106,6 +108,8 @@ export function Button({
         : theme.textPrimary;
   return (
     <Pressable
+      accessibilityHint={accessibilityHint}
+      accessibilityLabel={label}
       accessibilityRole="button"
       accessibilityState={{ disabled: blocked, busy }}
       disabled={blocked}
@@ -140,6 +144,7 @@ export function Field({
       <Text style={[styles.label, { color: theme.textPrimary }]}>{label}</Text>
       <TextInput
         ref={inputRef}
+        accessibilityHint={error}
         accessibilityLabel={label}
         accessibilityState={{ disabled: props.editable === false }}
         style={[

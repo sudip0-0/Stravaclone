@@ -22,7 +22,11 @@ import {
   requestRecordingPermissions,
 } from '../../services/recording-location';
 import { permissionWarnings } from './permission-policy';
-import { formatCurrentMotion, formatDistance } from './recording-format';
+import {
+  formatAccuracy,
+  formatCurrentMotion,
+  formatDistance,
+} from './recording-format';
 import { RecordingCoordinator } from './recording-service';
 import {
   canSaveRecording,
@@ -429,7 +433,7 @@ export function RecordScreen() {
         <Text style={[styles.gpsText, { color: accuracyColor }]}>
           {accuracyLabel}
           {session?.latestRawAccuracyM != null
-            ? ` • ±${Math.round(session.latestRawAccuracyM)} m`
+            ? ` • ${formatAccuracy(session.latestRawAccuracyM, units)}`
             : ''}
         </Text>
       </View>
@@ -507,7 +511,9 @@ export function RecordScreen() {
       {stopped ? (
         <View style={styles.actions}>
           {!saveAllowed ? (
-            <StatusBanner message="Record for at least 30 seconds or 50 metres before saving. You can discard this recording." />
+            <StatusBanner
+              message={`Record for at least 30 seconds or ${units === 'imperial' ? '164 feet' : '50 metres'} before saving. You can discard this recording.`}
+            />
           ) : null}
           <Button
             busy={busy}

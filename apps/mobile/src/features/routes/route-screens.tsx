@@ -19,6 +19,7 @@ import type { Sport } from '@trail/contracts';
 import { Body, Button, ScreenTitle, StatusBanner } from '../../components/ui';
 import { useAppState } from '../../state/app-state';
 import { spacing, useTheme } from '../../theme/tokens';
+import { formatDistance as formatDisplayDistance } from '../stats/stats-model';
 import { RouteMap } from './route-map';
 import {
   addWaypoint,
@@ -51,6 +52,7 @@ function RouteListScreen({
   const { profile } = useAppState();
   const { service } = useRouteSync();
   const theme = useTheme();
+  const locale = Intl.DateTimeFormat().resolvedOptions().locale || 'en-US';
   const [items, setItems] = useState<CachedRoute[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -107,7 +109,11 @@ function RouteListScreen({
                 {item.name}
               </Text>
               <Text style={{ color: theme.textSecondary }}>
-                {Math.round(item.distance_m)} m
+                {formatDisplayDistance(
+                  item.distance_m,
+                  profile?.units ?? 'metric',
+                  locale,
+                )}
                 {item.sport_hint ? ` · ${item.sport_hint}` : ''}
                 {item.sync_status !== 'synced'
                   ? ` · ${item.sync_status.replace('_', ' ')}`
@@ -141,6 +147,7 @@ function BuilderScreen({
   const { profile } = useAppState();
   const { service } = useRouteSync();
   const theme = useTheme();
+  const locale = Intl.DateTimeFormat().resolvedOptions().locale || 'en-US';
   const [state, setState] = useState(emptyRouteBuilder);
   const [network, setNetwork] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -185,8 +192,13 @@ function BuilderScreen({
         accessibilityLiveRegion="polite"
         style={{ color: theme.textPrimary }}
       >
-        {state.waypoints.length} waypoints · {Math.round(routeDistanceM(state))}{' '}
-        m raw distance
+        {state.waypoints.length} waypoints ·{' '}
+        {formatDisplayDistance(
+          routeDistanceM(state),
+          profile?.units ?? 'metric',
+          locale,
+        )}{' '}
+        raw distance
       </Text>
       <View style={styles.row}>
         <Button
@@ -215,7 +227,11 @@ function BuilderScreen({
         value={state.name}
       />
       <Body>Sport hint (optional)</Body>
-      <View accessibilityRole="radiogroup" style={styles.row}>
+      <View
+        accessibilityLabel="Sport hint"
+        accessibilityRole="radiogroup"
+        style={styles.row}
+      >
         {sports.map((option) => (
           <Pressable
             accessibilityRole="radio"
@@ -268,6 +284,7 @@ function DetailScreen({
   const { profile } = useAppState();
   const { service } = useRouteSync();
   const theme = useTheme();
+  const locale = Intl.DateTimeFormat().resolvedOptions().locale || 'en-US';
   const [value, setValue] = useState<CachedRoute | null>(null);
   const [editName, setEditName] = useState('');
   const [network, setNetwork] = useState(false);
@@ -293,7 +310,10 @@ function DetailScreen({
     );
   if (!value)
     return (
-      <View style={[styles.page, { backgroundColor: theme.background }]}>
+      <View
+        accessibilityLiveRegion="polite"
+        style={[styles.page, { backgroundColor: theme.background }]}
+      >
         <Body>Loading route…</Body>
       </View>
     );
@@ -348,7 +368,12 @@ function DetailScreen({
         waypoints={value.waypoints}
       />
       <Body>
-        {Math.round(value.distance_m)} m · {value.waypoints.length} waypoints
+        {formatDisplayDistance(
+          value.distance_m,
+          profile?.units ?? 'metric',
+          locale,
+        )}{' '}
+        · {value.waypoints.length} waypoints
         {value.sport_hint ? ` · ${value.sport_hint}` : ''}
       </Body>
       <StatusBanner message="This is the raw, unsnapped waypoint line. No routing or elevation provider was contacted." />

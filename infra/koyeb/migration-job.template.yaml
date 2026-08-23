@@ -1,0 +1,3 @@
+# Intentionally empty: Koyeb Compose does not provide a safe one-shot job primitive for
+# this release flow. An operator must run the approved migration image by immutable digest
+# using the command in infra/README.md, confirm exit 0, and only then deploy runtime separately.

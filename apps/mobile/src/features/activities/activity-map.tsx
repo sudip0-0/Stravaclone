@@ -1,7 +1,8 @@
 import { StyleSheet, Text, View } from 'react-native';
 import type * as MapLibreType from '@maplibre/maplibre-react-native';
+import { MapAttribution } from '../../components/map-attribution';
+import { environment } from '../../config/environment';
 import { useTheme } from '../../theme/tokens';
-import { OPENFREEMAP_STYLE_URL } from '../record/recording-map';
 import {
   activityGeometryGeoJson,
   type ActivityDisplayGeometry,
@@ -42,52 +43,45 @@ export function ActivityMap({
   ];
   const shape = activityGeometryGeoJson(geometry);
   return (
-    <View style={styles.container}>
-      <MapLibreGL.Map
-        accessibilityLabel="Activity route map"
-        attribution={false}
-        logo={false}
-        mapStyle={OPENFREEMAP_STYLE_URL}
-        style={styles.map}
-      >
-        <MapLibreGL.Camera
-          bounds={bounds}
-          padding={{ top: 40, right: 40, bottom: 40, left: 40 }}
-        />
-        <MapLibreGL.GeoJSONSource data={shape} id="activity-route">
-          <MapLibreGL.Layer
-            id="activity-line"
-            paint={{ 'line-color': '#146C43', 'line-width': 5 }}
-            type="line"
+    <View>
+      <View style={styles.mapCanvas}>
+        <MapLibreGL.Map
+          accessibilityLabel="Activity route map"
+          attribution={false}
+          logo={false}
+          mapStyle={environment.mapStyleUrl}
+          style={styles.map}
+        >
+          <MapLibreGL.Camera
+            bounds={bounds}
+            padding={{ top: 40, right: 40, bottom: 40, left: 40 }}
           />
-          <MapLibreGL.Layer
-            id="activity-singletons"
-            paint={{ 'circle-color': '#146C43', 'circle-radius': 4 }}
-            type="circle"
-          />
-        </MapLibreGL.GeoJSONSource>
-      </MapLibreGL.Map>
-      <Text style={styles.attribution}>
-        © OpenMapTiles © OpenStreetMap contributors
-      </Text>
+          <MapLibreGL.GeoJSONSource data={shape} id="activity-route">
+            <MapLibreGL.Layer
+              id="activity-line"
+              paint={{ 'line-color': '#146C43', 'line-width': 5 }}
+              type="line"
+            />
+            <MapLibreGL.Layer
+              id="activity-singletons"
+              paint={{ 'circle-color': '#146C43', 'circle-radius': 4 }}
+              type="circle"
+            />
+          </MapLibreGL.GeoJSONSource>
+        </MapLibreGL.Map>
+      </View>
+      <MapAttribution provider={environment.mapProvider} />
     </View>
   );
 }
 const styles = StyleSheet.create({
-  container: { height: 260, overflow: 'hidden' },
   map: { flex: 1 },
+  mapCanvas: { height: 212, overflow: 'hidden' },
   fallback: {
     alignItems: 'center',
     borderWidth: 1,
     justifyContent: 'center',
     minHeight: 160,
     padding: 16,
-  },
-  attribution: {
-    backgroundColor: '#ffffffcc',
-    bottom: 0,
-    fontSize: 10,
-    position: 'absolute',
-    right: 0,
   },
 });

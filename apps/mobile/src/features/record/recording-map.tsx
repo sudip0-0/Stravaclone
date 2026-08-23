@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type * as MapLibreType from '@maplibre/maplibre-react-native';
+import { MapAttribution } from '../../components/map-attribution';
+import { environment } from '../../config/environment';
 import { useTheme } from '../../theme/tokens';
 import type { SequencedPoint } from './recording-types';
 
@@ -14,8 +16,6 @@ try {
 } catch {
   MapLibreGL = null;
 }
-export const OPENFREEMAP_STYLE_URL =
-  'https://tiles.openfreemap.org/styles/liberty';
 
 export function RecordingMap({
   points,
@@ -60,137 +60,104 @@ export function RecordingMap({
     [points],
   );
   return (
-    <View
-      style={[
-        styles.container,
-        { borderColor: theme.border, backgroundColor: theme.surface },
-      ]}
-    >
-      {networkEnabled && nativeMapAvailable && MapLibreGL ? (
-        <MapLibreGL.Map
-          accessibilityLabel="Live recording map"
-          attribution={false}
-          logo={false}
-          mapStyle={OPENFREEMAP_STYLE_URL}
-          style={styles.map}
-        >
-          <MapLibreGL.Camera
-            initialViewState={{ zoom: 16 }}
-            {...(following ? { trackUserLocation: 'default' as const } : {})}
-          />
-          <MapLibreGL.UserLocation accuracy animated heading />
-          {routePoints.length > 1 ? (
-            <MapLibreGL.GeoJSONSource data={routeShape} id="planned-route">
-              <MapLibreGL.Layer
-                id="planned-route-line"
-                paint={{
-                  'line-color': '#4176A6',
-                  'line-dasharray': [2, 2],
-                  'line-width': 4,
-                }}
-                type="line"
-              />
-            </MapLibreGL.GeoJSONSource>
-          ) : null}
-          {points.length > 1 ? (
-            <MapLibreGL.GeoJSONSource data={shape} id="recording-route">
-              <MapLibreGL.Layer
-                id="recording-line"
-                paint={{ 'line-color': '#146C43', 'line-width': 5 }}
-                type="line"
-              />
-            </MapLibreGL.GeoJSONSource>
-          ) : null}
-        </MapLibreGL.Map>
-      ) : (
-        <View accessibilityRole="summary" style={styles.fallback}>
-          <Text style={[styles.fallbackTitle, { color: theme.textPrimary }]}>
-            {networkEnabled
-              ? 'Map unavailable in this build'
-              : 'Map network is off'}
-          </Text>
-          <Text style={[styles.fallbackBody, { color: theme.textSecondary }]}>
-            {networkEnabled
-              ? 'GPS recording still works. MapLibre requires an Expo development build and is not available in Expo Go.'
-              : 'GPS recording still works without map requests. Loading the map sends your IP address and requested map area, which can approximate your location, to OpenFreeMap infrastructure, subject to provider terms and retention practices.'}
-          </Text>
-        </View>
-      )}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ selected: networkEnabled }}
-        onPress={onToggleNetwork}
+    <View>
+      <View
         style={[
-          styles.network,
-          { backgroundColor: theme.background, borderColor: theme.border },
+          styles.mapCanvas,
+          { borderColor: theme.border, backgroundColor: theme.surface },
         ]}
       >
-        <Text style={{ color: theme.textPrimary }}>
-          {networkEnabled ? 'Turn map network off' : 'Load map with network'}
-        </Text>
-      </Pressable>
-      {networkEnabled && nativeMapAvailable ? (
+        {networkEnabled && nativeMapAvailable && MapLibreGL ? (
+          <MapLibreGL.Map
+            accessibilityLabel="Live recording map"
+            attribution={false}
+            logo={false}
+            mapStyle={environment.mapStyleUrl}
+            style={styles.map}
+          >
+            <MapLibreGL.Camera
+              initialViewState={{ zoom: 16 }}
+              {...(following ? { trackUserLocation: 'default' as const } : {})}
+            />
+            <MapLibreGL.UserLocation accuracy animated heading />
+            {routePoints.length > 1 ? (
+              <MapLibreGL.GeoJSONSource data={routeShape} id="planned-route">
+                <MapLibreGL.Layer
+                  id="planned-route-line"
+                  paint={{
+                    'line-color': '#4176A6',
+                    'line-dasharray': [2, 2],
+                    'line-width': 4,
+                  }}
+                  type="line"
+                />
+              </MapLibreGL.GeoJSONSource>
+            ) : null}
+            {points.length > 1 ? (
+              <MapLibreGL.GeoJSONSource data={shape} id="recording-route">
+                <MapLibreGL.Layer
+                  id="recording-line"
+                  paint={{ 'line-color': '#146C43', 'line-width': 5 }}
+                  type="line"
+                />
+              </MapLibreGL.GeoJSONSource>
+            ) : null}
+          </MapLibreGL.Map>
+        ) : (
+          <View accessibilityRole="summary" style={styles.fallback}>
+            <Text style={[styles.fallbackTitle, { color: theme.textPrimary }]}>
+              {networkEnabled
+                ? 'Map unavailable in this build'
+                : 'Map network is off'}
+            </Text>
+            <Text style={[styles.fallbackBody, { color: theme.textSecondary }]}>
+              {networkEnabled
+                ? 'GPS recording still works. MapLibre requires an Expo development build and is not available in Expo Go.'
+                : `GPS recording still works without map requests. Loading the map sends your IP address and requested map area, which can approximate your location, to ${environment.mapProvider.name} infrastructure, subject to provider terms and retention practices.`}
+            </Text>
+          </View>
+        )}
         <Pressable
-          accessibilityLabel={
-            following ? 'Stop following my location' : 'Follow my location'
-          }
           accessibilityRole="button"
-          accessibilityState={{ selected: following }}
-          onPress={onToggleFollow}
+          accessibilityState={{ selected: networkEnabled }}
+          onPress={onToggleNetwork}
           style={[
-            styles.follow,
+            styles.network,
             { backgroundColor: theme.background, borderColor: theme.border },
           ]}
         >
           <Text style={{ color: theme.textPrimary }}>
-            {following ? 'Following' : 'Follow'}
+            {networkEnabled ? 'Turn map network off' : 'Load map with network'}
           </Text>
         </Pressable>
-      ) : null}
-      {networkEnabled ? (
-        <View
-          style={[styles.attribution, { backgroundColor: theme.background }]}
-        >
-          <Text style={[styles.attributionText, { color: theme.textPrimary }]}>
-            ©{' '}
-          </Text>
-          <Text
-            accessibilityRole="link"
-            onPress={() =>
-              void Linking.openURL('https://www.openstreetmap.org/copyright')
+        {networkEnabled && nativeMapAvailable ? (
+          <Pressable
+            accessibilityLabel={
+              following ? 'Stop following my location' : 'Follow my location'
             }
-            style={[styles.attributionText, { color: theme.link }]}
+            accessibilityRole="button"
+            accessibilityState={{ selected: following }}
+            onPress={onToggleFollow}
+            style={[
+              styles.follow,
+              { backgroundColor: theme.background, borderColor: theme.border },
+            ]}
           >
-            OpenStreetMap
-          </Text>
-          <Text style={[styles.attributionText, { color: theme.textPrimary }]}>
-            {' '}
-            ·{' '}
-          </Text>
-          <Text
-            accessibilityRole="link"
-            onPress={() => void Linking.openURL('https://openfreemap.org')}
-            style={[styles.attributionText, { color: theme.link }]}
-          >
-            OpenFreeMap
-          </Text>
-        </View>
+            <Text style={{ color: theme.textPrimary }}>
+              {following ? 'Following' : 'Follow'}
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
+      {networkEnabled ? (
+        <MapAttribution provider={environment.mapProvider} />
       ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  attribution: {
-    bottom: 4,
-    flexDirection: 'row',
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    position: 'absolute',
-    right: 4,
-  },
-  attributionText: { fontSize: 12, lineHeight: 18 },
-  container: {
+  mapCanvas: {
     borderRadius: 16,
     borderWidth: 1,
     height: 260,

@@ -20,7 +20,9 @@ function unauthorized(): ApplicationError {
 }
 
 export function authenticate(config: ApiConfig, providers: Providers) {
-  return async (request: FastifyRequest): Promise<void> => {
+  return async function authenticateAccessToken(
+    request: FastifyRequest,
+  ): Promise<void> {
     const authorization = request.headers.authorization;
     if (!authorization?.startsWith('Bearer ') || authorization.length <= 7) {
       throw unauthorized();

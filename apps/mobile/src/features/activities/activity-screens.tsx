@@ -15,6 +15,7 @@ import {
 } from '@react-navigation/native-stack';
 import type { Activity, ActivitySummary } from '@trail/contracts';
 import { Body, Button, ScreenTitle, StatusBanner } from '../../components/ui';
+import { environment } from '../../config/environment';
 import { useAppState } from '../../state/app-state';
 import { recordingRepository } from '../../storage/recording-database';
 import { spacing, useTheme } from '../../theme/tokens';
@@ -50,6 +51,7 @@ function ActivityListScreen({
   const { api, profile } = useAppState();
   const sync = useActivitySync();
   const theme = useTheme();
+  const locale = Intl.DateTimeFormat().resolvedOptions().locale || 'en-US';
   const [remote, setRemote] = useState<ActivitySummary[]>([]);
   const [pending, setPending] = useState<PendingSummary[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -88,7 +90,10 @@ function ActivityListScreen({
   );
   if (loading)
     return (
-      <View style={[styles.center, { backgroundColor: theme.background }]}>
+      <View
+        accessibilityLiveRegion="polite"
+        style={[styles.center, { backgroundColor: theme.background }]}
+      >
         <Body>Loading activities…</Body>
       </View>
     );
@@ -121,7 +126,13 @@ function ActivityListScreen({
             const local = 'pending' in item && item.pending === true;
             return (
               <Pressable
+                accessibilityHint={
+                  local
+                    ? 'Activity detail is available after upload.'
+                    : undefined
+                }
                 accessibilityRole="button"
+                accessibilityState={{ disabled: local }}
                 disabled={local}
                 onPress={() =>
                   navigation.navigate('ActivityDetail', { id: item.id })
@@ -136,10 +147,15 @@ function ActivityListScreen({
                 </Text>
                 <Text style={{ color: theme.textSecondary }}>
                   {item.sport.toUpperCase()} ·{' '}
-                  {new Date(item.started_at).toLocaleString()} ·{' '}
+                  {new Intl.DateTimeFormat(locale, {
+                    dateStyle: 'medium',
+                    timeStyle: 'short',
+                  }).format(new Date(item.started_at))}{' '}
+                  ·{' '}
                   {formatActivityDistance(
                     item.stats.distance_m,
                     profile?.units ?? 'metric',
+                    locale,
                   )}{' '}
                   · {formatActivityDuration(item.stats.moving_time_s)}
                 </Text>
@@ -182,6 +198,7 @@ function ActivityDetailScreen({
 }: NativeStackScreenProps<ActivityParamList, 'ActivityDetail'>) {
   const { api, profile } = useAppState();
   const theme = useTheme();
+  const locale = Intl.DateTimeFormat().resolvedOptions().locale || 'en-US';
   const [activity, setActivity] = useState<Activity | null>(null);
   const [error, setError] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -243,7 +260,10 @@ function ActivityDetailScreen({
     );
   if (!activity)
     return (
-      <View style={[styles.center, { backgroundColor: theme.background }]}>
+      <View
+        accessibilityLiveRegion="polite"
+        style={[styles.center, { backgroundColor: theme.background }]}
+      >
         <Body>Loading activity…</Body>
       </View>
     );
@@ -279,6 +299,7 @@ function ActivityDetailScreen({
         {formatActivityDistance(
           activity.stats.distance_m,
           profile?.units ?? 'metric',
+          locale,
         )}
       </Text>
       <Body>
@@ -287,7 +308,7 @@ function ActivityDetailScreen({
       </Body>
       <Body>
         {activity.sport === 'ride'
-          ? `Average speed ${formatActivitySpeed(activity.stats.average_speed_mps, units)}`
+          ? `Average speed ${formatActivitySpeed(activity.stats.average_speed_mps, units, locale)}`
           : `Average pace ${formatActivityPace(
               activity.stats.average_pace_s_per_km === null
                 ? null
@@ -296,7 +317,7 @@ function ActivityDetailScreen({
               units,
             )}`}{' '}
         · Elevation gain{' '}
-        {formatElevation(activity.stats.elevation_gain_m, units)}
+        {formatElevation(activity.stats.elevation_gain_m, units, locale)}
       </Body>
       {activity.notes ? <Body>{activity.notes}</Body> : null}
       <Button
@@ -306,7 +327,7 @@ function ActivityDetailScreen({
       {mapEnabled ? <ActivityMap geometry={mapGeometry} /> : null}
       <Body>
         {mapEnabled
-          ? `Route loaded and fit from ${mapGeometry.pointCount} display points (maximum 1,000). ${mapGeometry.degraded ? 'The pause-separated route exceeded the display budget, so representative segments were retained without joining across pauses. ' : ''}Map requests may disclose the viewed area and IP address to the map provider.`
+          ? `Route loaded and fit from ${mapGeometry.pointCount} display points (maximum 1,000). ${mapGeometry.degraded ? 'The pause-separated route exceeded the display budget, so representative segments were retained without joining across pauses. ' : ''}Map requests may disclose the viewed area and IP address to ${environment.mapProvider.name}.`
           : 'Map is off by default for network privacy. Your route remains private in Trail.'}
       </Body>
       <Text
@@ -353,8 +374,8 @@ function ActivityDetailScreen({
           ))}
         </View>
         <Body>
-          Gain {formatElevation(activity.elevation.gain_m, units)} · Loss{' '}
-          {formatElevation(activity.elevation.loss_m, units)}
+          Gain {formatElevation(activity.elevation.gain_m, units, locale)} ·
+          Loss {formatElevation(activity.elevation.loss_m, units, locale)}
         </Body>
       </View>
       <Text
@@ -398,6 +419,7 @@ function ActivityDetailScreen({
         <Button label="Edit title and notes" onPress={() => setEditing(true)} />
       )}
       <Button
+        accessibilityHint="Permanently deletes this activity after confirmation."
         label="Delete activity"
         onPress={() =>
           Alert.alert(
@@ -413,6 +435,7 @@ function ActivityDetailScreen({
             ],
           )
         }
+        variant="danger"
       />
     </ScrollView>
   );

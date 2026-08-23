@@ -3,7 +3,8 @@
 **Working name:** Trail  
 **Release:** v1  
 **Status:** Definition based on `PRD.md` v1.0  
-**Platforms:** iOS and Android via Expo  
+**Platforms:** iOS and Android via Expo SDK 57 and its selected React Native version
+
 **Business model:** Free closed beta; no ads, paywall, or in-app purchases in v1. Paid Apple/Google developer accounts remain an unavoidable distribution cost.
 
 ## 1. Product summary
@@ -103,7 +104,7 @@ Users can edit title/notes and delete an activity after confirmation. GPS track 
 
 Users can attach up to ten private photos from the library, with a maximum input size of 10 MB each; camera capture is expected if schedule permits. Activity save does not wait for photo upload. Failed photos retry independently and remain visibly pending.
 
-Supported inputs are normalized, EXIF is stripped, and only intentionally retained capture time/location may create a map marker. Deleting a photo removes its database record and private object.
+JPEG/WebP inputs are normalized, EXIF is stripped, and only intentionally retained capture time/location may create a map marker. HEIC is a release blocker pending LGPL/relinking and HEVC patent review; it must be approved or removed before release. Deleting a photo removes its database record and private object.
 
 ### 6.6 Routes
 

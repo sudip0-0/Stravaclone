@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "exceptions": [
+    {
+      "advisory_id": "GHSA-w3rx-r6r6-pgpr",
+      "package": "image-size",
+      "version": "1.2.1",
+      "paths": ["apps__mobile>expo>@expo/metro>metro>image-size"],
+      "audit_scopes": ["all", "prod"],
+      "exposure_scope": "build-only Metro toolchain",
+      "owner": "Mobile platform owner",
+      "rationale": "The vulnerable ICNS parser is present only in Expo's Metro build toolchain. It is not shipped in the API container or invoked by the mobile runtime, and release builds consume repository-controlled assets rather than untrusted image uploads.",
+      "compensating_controls": [
+        "Metro is never exposed as a network service in production",
+        "Release builds run only from reviewed repository assets in isolated CI",
+        "Untrusted user photos are processed by the API's bounded libheif/sharp pipeline, not Metro image-size"
+      ],
+      "review_date": "2026-08-23",
+      "expiry_date": "2026-09-30",
+      "no_fix_status": "Upstream advisory recommendation is None and patched_versions is <0.0.0 as of review",
+      "expected_severity": "high",
+      "expected_recommendation": "None",
+      "expected_patched_versions": "<0.0.0"
+    },
+    {
+      "advisory_id": "GHSA-5p2g-fcmc-qvqq",
+      "package": "image-size",
+      "version": "1.2.1",
+      "paths": ["apps__mobile>expo>@expo/metro>metro>image-size"],
+      "audit_scopes": ["all", "prod"],
+      "exposure_scope": "build-only Metro toolchain",
+      "owner": "Mobile platform owner",
+      "rationale": "The vulnerable JXL/HEIF parser is present only in Expo's Metro build toolchain. It is not shipped in the API container or invoked by the mobile runtime, and release builds consume repository-controlled assets rather than untrusted image uploads.",
+      "compensating_controls": [
+        "Metro is never exposed as a network service in production",
+        "Release builds run only from reviewed repository assets in isolated CI",
+        "Untrusted user photos are processed by the API's bounded libheif/sharp pipeline, not Metro image-size"
+      ],
+      "review_date": "2026-08-23",
+      "expiry_date": "2026-09-30",
+      "no_fix_status": "Upstream advisory recommendation is None and patched_versions is <0.0.0 as of review",
+      "expected_severity": "high",
+      "expected_recommendation": "None",
+      "expected_patched_versions": "<0.0.0"
+    }
+  ]
+}

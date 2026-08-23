@@ -252,6 +252,50 @@ suite('Phase 5 private photo API', () => {
     ).toBe(404);
   });
 
+  it('denies all cross-owner photo reads, writes, deletes, presign reissues, and downloads', async () => {
+    const initiated = (await initiate(10)).json<{ photo_id: string }>();
+    const cases = [
+      {
+        method: 'POST',
+        url: `/v1/activities/${activity}/photos/initiate`,
+        payload: { input_mime: 'image/jpeg', input_size_bytes: 10 },
+      },
+      {
+        method: 'POST',
+        url: `/v1/activities/${activity}/photos/${initiated.photo_id}/reissue`,
+      },
+      {
+        method: 'POST',
+        url: `/v1/activities/${activity}/photos/${initiated.photo_id}/complete`,
+      },
+      { method: 'GET', url: `/v1/activities/${activity}/photos` },
+      {
+        method: 'GET',
+        url: `/v1/activities/${activity}/photos/${initiated.photo_id}/download`,
+      },
+      {
+        method: 'DELETE',
+        url: `/v1/activities/${activity}/photos/${initiated.photo_id}`,
+      },
+    ] as const;
+    for (const request of cases) {
+      const response = await app.inject({
+        ...request,
+        headers: auth(otherToken),
+      });
+      expect(response.statusCode, `${request.method} ${request.url}`).toBe(404);
+    }
+    expect(
+      (
+        await app.inject({
+          method: 'POST',
+          url: `/v1/activities/${activity}/photos/${initiated.photo_id}/reissue`,
+          headers: auth(),
+        })
+      ).statusCode,
+    ).toBe(200);
+  });
+
   it('preserves the latest reissue expiry through processing and replay cleanup', async () => {
     const input = await sharp({
       create: {

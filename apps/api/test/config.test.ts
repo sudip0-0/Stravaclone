@@ -111,6 +111,10 @@ describe('API environment', () => {
       'MAP_STYLE_URL',
       { MAP_STYLE_URL: 'http://tiles.provider.invalid/style.json' },
     ],
+    [
+      'MAP_STYLE_URL',
+      { MAP_STYLE_URL: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png' },
+    ],
   ])('rejects insecure production %s configuration', (field, override) => {
     expect(() =>
       parseConfig({ ...productionEnvironment, ...override }),

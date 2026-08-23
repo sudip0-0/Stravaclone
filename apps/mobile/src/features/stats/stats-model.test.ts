@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  calendarGridLayout,
   firstWeekday,
+  formatCalendarDate,
   formatDistance,
   formatElevation,
   monthCells,
@@ -30,6 +32,19 @@ describe('Phase 7 local calendar model', () => {
     expect(sunday).toHaveLength(42);
     expect(sunday[0]).toMatchObject({ date: '2026-03-01', inMonth: true });
     expect(monday[0]).toMatchObject({ date: '2026-02-23', inMonth: false });
+  });
+
+  it('models seven fixed 48dp columns in a horizontal viewport at 320dp', () => {
+    const layout = calendarGridLayout(320);
+    expect(layout).toMatchObject({
+      availableWidth: 280,
+      cellHeight: 48,
+      cellWidth: 48,
+      columnCount: 7,
+      gridWidth: 336,
+      horizontalScrollRequired: true,
+    });
+    expect(layout.gridWidth).toBe(layout.cellWidth * layout.columnCount);
   });
 
   it('derives explicit UTC boundaries from local midnights across spring DST', () => {
@@ -65,6 +80,9 @@ describe('Phase 7 local calendar model', () => {
     expect(formatDistance(1609.344, 'metric', 'en-US')).toBe('1.6 km');
     expect(formatDistance(1609.344, 'imperial', 'en-US')).toBe('1 mi');
     expect(formatElevation(100, 'imperial', 'en-US')).toBe('328 ft');
+    expect(formatDistance(1609.344, 'metric', 'de-DE')).toBe('1,6 km');
+    expect(formatCalendarDate('2026-03-08', 'en-US')).toBe('March 8, 2026');
+    expect(formatCalendarDate('2026-03-08', 'de-DE')).toBe('8. März 2026');
   });
 
   it('explains that pending local activities are excluded', () => {

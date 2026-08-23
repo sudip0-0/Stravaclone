@@ -215,6 +215,17 @@ const envSchema = z
     }
     if (!env.MAP_STYLE_URL.startsWith('https://'))
       addIssue(context, 'MAP_STYLE_URL', 'Production map URL must use HTTPS');
+    const mapHost = new URL(env.MAP_STYLE_URL).hostname.toLowerCase();
+    if (
+      mapHost === 'tile.openstreetmap.org' ||
+      mapHost.endsWith('.tile.openstreetmap.org')
+    ) {
+      addIssue(
+        context,
+        'MAP_STYLE_URL',
+        'OpenStreetMap Foundation public tile servers are prohibited',
+      );
+    }
 
     if (env.EMAIL_MODE === 'smtp') {
       if (env.EMAIL_PROVIDER === 'mailpit')

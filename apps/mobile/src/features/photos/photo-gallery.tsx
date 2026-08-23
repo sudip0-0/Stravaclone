@@ -186,7 +186,9 @@ export function PhotoGallery({ activityId }: { activityId: string }) {
               {photo.width} × {photo.height} · Ready
             </Body>
             <Button
+              accessibilityHint="Permanently deletes this private photo after confirmation."
               label="Delete photo"
+              variant="danger"
               onPress={() =>
                 Alert.alert('Delete this photo?', 'This cannot be undone.', [
                   { text: 'Cancel', style: 'cancel' },
@@ -221,7 +223,9 @@ export function PhotoGallery({ activityId }: { activityId: string }) {
                 : 'Processing privately'}
             </Text>
             <Button
+              accessibilityHint="Permanently deletes this private photo after confirmation."
               label="Delete photo"
+              variant="danger"
               onPress={() =>
                 Alert.alert(
                   'Delete this photo?',
@@ -263,7 +267,9 @@ export function PhotoGallery({ activityId }: { activityId: string }) {
               />
             ) : null}
             <Button
+              accessibilityHint="Deletes the private upload after confirmation."
               label="Remove photo"
+              variant="danger"
               onPress={() =>
                 Alert.alert(
                   'Remove this photo?',

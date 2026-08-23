@@ -1,6 +1,6 @@
 # Trail v1 Delivery Plan
 
-**Status:** Phase 1 local implementation complete; Phase 0 external decisions remain
+**Status:** Implemented through local Phase 8 hardening; external provider, legal/store, measured-beta, physical-device, and release gates remain open
 **Legend:** `[ ]` not started · `[~]` in progress · `[x]` complete · `[!]` blocked  
 **Priority:** P0 ship blocker · P1 expected for v1 unless explicitly cut · P2 optional
 
@@ -228,30 +228,32 @@ Work in phase order unless a dependency is explicitly resolved another way. A ta
 
 ### 8.1 Privacy/security
 
-- [ ] **P0** Complete authorization review for every user-owned endpoint and signed object operation.
-- [ ] **P0** Verify logs/crash reports redact credentials, signed URLs, raw GPS, and photo metadata.
-- [ ] **P0** Add privacy policy and terms URLs with accurate collection, retention, and deletion statements. (`PRD §12.3`)
-- [ ] **P0** Complete Apple privacy nutrition and Play data safety declarations.
-- [ ] **P0** Run dependency, mobile configuration, API abuse/rate-limit, and object-storage permission reviews.
+- [x] **P0 LOCAL** Generate and test the authorization matrix for every implemented user-owned endpoint, including photo capabilities and object operations. External R2 policy evidence remains in §8.3.
+- [x] **P0 LOCAL** Verify structured logs and OpenTelemetry redaction/allowlists exclude credentials, signed URLs, raw GPS, object keys, and photo metadata; third-party crash export remains disabled.
+- [x] **P0 LOCAL** Run dependency/supply-chain, release-secret, mobile/API production configuration, abuse/rate-limit, and local object-storage permission checks.
+- [ ] **P0 EXTERNAL/LEGAL** Publish public HTTPS privacy, terms, support, and deletion URLs with approved collection, retention, and deletion statements. (`PRD §12.3`)
+- [ ] **P0 EXTERNAL/STORE** Approve Apple privacy nutrition and Play Data safety declarations against the release build and provider agreements.
 
 ### 8.2 Accessibility and quality
 
-- [ ] **P0** Audit VoiceOver/TalkBack labels for recording controls, tabs, maps, and destructive actions.
-- [ ] **P0** Verify dynamic type and that GPS quality is not color-only. (`PRD §7.6`)
-- [ ] **P0** Verify locale-aware number/date formatting and metric/imperial consistency.
-- [ ] **P0** Meet crash-free beta target of at least 99.5%; investigate recording-related crashes first.
-- [ ] **P0** Validate upload success target of at least 99% within one hour once network returns.
+- [x] **P0 LOCAL** Complete static accessibility checks for labels/roles on recording controls, tabs, maps, destructive actions, touch targets, and non-color GPS quality. (`PRD §7.6`)
+- [x] **P0 LOCAL** Verify locale-aware number/date formatting and metric/imperial consistency with automated locale, timezone, DST, and unit fixtures.
+- [ ] **P0 DEVICE** Verify VoiceOver/TalkBack focus and announcements, largest dynamic type/layout, touch targets, and non-color states on supported physical iOS/Android devices.
+- [ ] **P0 BETA METRIC** Meet crash-free beta target of at least 99.5%; investigate recording-related crashes first.
+- [ ] **P0 BETA METRIC** Validate upload success target of at least 99% within one hour once network returns.
 
 ### 8.3 Operations and store readiness
 
-- [ ] **P0** Configure beta isolation, daily Postgres backups, documented restore/runbook drill, migrations, alerts, provider quotas, and key rotation; record any Neon free-tier gap.
-- [ ] **P0** Configure privacy-safe structured logs/OpenTelemetry, health/readiness, API metrics, and optional scrubbed Sentry/GlitchTip crash reporting plus sync/elevation/photo failure alerts.
-- [ ] **P0** Configure Koyeb free API, Neon free Postgres, Cloudflare R2, Resend SMTP, and OpenFreeMap; verify attribution, terms, quotas, cold-start UX, and explicit no-SLA posture.
-- [ ] **P0** Prepare App Store background-location review notes, screenshots, purpose strings, and test account.
-- [ ] **P0** Prepare Play foreground-service declaration, notification behavior, data safety, and internal test track.
-- [ ] **P0** Run all eight PRD section 16 QA scripts on release candidates and archive evidence; for script 6, replace snap on/off with the approved `RTE-2` deferral record and raw-route/record-handoff evidence.
-- [ ] **P0** Verify signup-to-first-save happy path is understandable and under ten minutes excluding activity time.
-- [ ] **P0** Triage all open P0 defects; document any P1 cut as a written PRD exception.
+- [x] **P0 LOCAL** Validate encrypted logical backup/restore using synthetic data, including authenticated canonical HMAC-manifest/ciphertext tamper failures, wrong encryption/authentication keys, restore-only-to-new-database, cleanup, retention, concurrency, and collision-resistant names; document the operator-run migration image and rollback sequence.
+- [x] **P0 LOCAL** Add and validate credential-free beta environment/Koyeb templates, explicit immutable migration/runtime separation, release scanning, no-SLA/cold-start notes, provider exits, alerts, quotas, and key-rotation checklists. Templates do not deploy or configure schedules/accounts.
+- [x] **P0 LOCAL** Validate privacy-safe structured logs/OpenTelemetry, health/readiness, configuration, and local metric/alert plumbing; external collectors, dashboards, alert delivery, and crash reporting remain disabled/unproven.
+- [x] **P0 LOCAL** Centralize and validate build-time `EXPO_PUBLIC_MAP_STYLE_URL`, `EXPO_PUBLIC_MAP_PROVIDER_NAME`, and `EXPO_PUBLIC_MAP_PROVIDER_URL` with the OpenFreeMap HTTPS default, OpenStreetMap attribution always visible, prohibited public OSM Foundation tile hosts, and documented rebuild-based Protomaps fallback.
+- [ ] **P0 EXTERNAL/PROVIDER** Provision isolated Koyeb, Neon, private R2, Resend, map hosting/fallback, encrypted backup destination/schedule, telemetry/alerts, region, secrets, quotas, terms, attribution, and cold-start evidence; perform a provider restore drill and record any Neon free-tier gap.
+- [ ] **P0 STORE** Prepare and approve App Store background-location review notes, screenshots, purpose strings, test account, privacy declarations, and TestFlight track.
+- [ ] **P0 STORE** Prepare and approve Play foreground-service declaration, notification behavior, Data safety, test account, and internal test track.
+- [ ] **P0 RELEASE/DEVICE** Run all eight PRD section 16 QA scripts on exact release candidates and archive evidence; for script 6, replace snap on/off with the approved `RTE-2` deferral record and raw-route/record-handoff evidence.
+- [ ] **P0 RELEASE/DEVICE** Verify signup-to-first-save is understandable and under ten minutes excluding activity time on supported physical devices.
+- [ ] **P0 RELEASE NO-GO** Triage all open P0 defects, close legal/provider/device/store/metric gates, document any P1 cut as a written PRD exception, and record parent-orchestrator approval.
 
 **Exit:** Store/internal distribution builds pass the full release checklist on real devices with production-shaped services.
 
@@ -283,12 +285,15 @@ Do not pull these into v1 without a separate scope decision.
 
 Keep this table current once implementation starts.
 
-| Blocker                             | Owner          | Status  | Required evidence                                                                     |
-| ----------------------------------- | -------------- | ------- | ------------------------------------------------------------------------------------- |
-| Final product identity/store access | External owner | Blocked | Brand, domain, unique bundle/application IDs, legal owner, paid Apple/Google accounts |
-| Beta provider accounts/region       | External owner | Open    | Koyeb/Neon/R2/Resend accounts, region, terms and quota review                         |
-| Beta map capacity                   | SWE worker     | Open    | OpenFreeMap attribution/terms/load evidence; Protomaps fallback runbook               |
-| Background GPS                      | SWE worker     | Open    | 20-minute locked-screen evidence on iOS/Android                                       |
-| Privacy and legal URLs              | External owner | Open    | Published policy/terms and store metadata                                             |
-| Account linking                     | External owner | Open    | Approved policy and integration tests                                                 |
-| Backup/restore                      | SWE worker     | Open    | Daily target configured, limitation recorded, successful beta restore drill           |
+| Blocker                             | Owner          | Status                  | Required evidence                                                                                        |
+| ----------------------------------- | -------------- | ----------------------- | -------------------------------------------------------------------------------------------------------- |
+| Final product identity/store access | External owner | Blocked                 | Brand, domain, unique bundle/application IDs, legal owner, paid Apple/Google accounts                    |
+| Beta provider accounts/region       | External owner | Open                    | Koyeb/Neon/R2/Resend accounts, region, terms, quota, secrets, alert delivery, and private R2 proof       |
+| Beta map capacity                   | External owner | Open; local config done | OpenFreeMap attribution/terms/load evidence and owner-hosted Protomaps release-build switch/rollback     |
+| Background GPS/device QA            | External owner | Open                    | Supported-device matrices, 20-minute locked-screen recording, recovery, accessibility, locale, battery   |
+| Privacy/legal/store declarations    | External owner | Open                    | Published HTTPS privacy/terms/support/deletion URLs and approved Apple/Play declarations                 |
+| Account linking/SSO                 | External owner | Blocked                 | Approved policy, native/provider setup, step-up design, integration/device tests                         |
+| Backup/restore operations           | External owner | Open; local drill done  | Approved encrypted destination and schedule, backup-age alert, successful provider restore drill         |
+| HEIC distribution                   | External owner | Blocked                 | LGPL/relinking and HEVC patent approval, or HEIC removed from release                                    |
+| Beta reliability metrics            | External owner | Open                    | Measured crash-free and one-hour upload success targets from the release cohort                          |
+| Store tracks and release decision   | External owner | Open                    | TestFlight/Play tracks, eight evidence records, no open P0, and recorded parent-orchestrator go decision |

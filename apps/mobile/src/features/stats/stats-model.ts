@@ -2,6 +2,25 @@ import type { StatsQuery, StatsTotals, UnitSystem } from '@trail/contracts';
 
 export type CalendarCell = { date: string; day: number; inMonth: boolean };
 
+export const CALENDAR_COLUMN_COUNT = 7;
+export const CALENDAR_CELL_SIZE = 48;
+
+export function calendarGridLayout(
+  viewportWidth: number,
+  horizontalPagePadding = 40,
+) {
+  const availableWidth = Math.max(0, viewportWidth - horizontalPagePadding);
+  const gridWidth = CALENDAR_COLUMN_COUNT * CALENDAR_CELL_SIZE;
+  return {
+    availableWidth,
+    cellHeight: CALENDAR_CELL_SIZE,
+    cellWidth: CALENDAR_CELL_SIZE,
+    columnCount: CALENDAR_COLUMN_COUNT,
+    gridWidth,
+    horizontalScrollRequired: gridWidth > availableWidth,
+  };
+}
+
 export function deviceTimezone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 }
@@ -126,10 +145,24 @@ export function formatElevation(
   return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(value)} ${units === 'metric' ? 'm' : 'ft'}`;
 }
 
-export function formatDuration(seconds: number): string {
+export function formatDuration(
+  seconds: number,
+  locale = Intl.DateTimeFormat().resolvedOptions().locale || 'en-US',
+): string {
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
-  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+  const number = new Intl.NumberFormat(locale);
+  return hours > 0
+    ? `${number.format(hours)}h ${number.format(minutes)}m`
+    : `${number.format(minutes)}m`;
+}
+
+export function formatCalendarDate(dateKey: string, locale: string): string {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  if (!year || !month || !day) return dateKey;
+  return new Intl.DateTimeFormat(locale, { dateStyle: 'long' }).format(
+    new Date(year, month - 1, day),
+  );
 }
 
 export function pendingSyncMessage(count: number): string | null {
@@ -144,7 +177,7 @@ export function presentTotals(
 ) {
   return {
     distance: formatDistance(totals.distance_m, units, locale),
-    time: formatDuration(totals.moving_time_s),
+    time: formatDuration(totals.moving_time_s, locale),
     count: new Intl.NumberFormat(locale).format(totals.activity_count),
     elevation: formatElevation(totals.elevation_gain_m, units, locale),
   };

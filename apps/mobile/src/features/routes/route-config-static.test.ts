@@ -5,6 +5,7 @@ const sources = [
   'route-map.tsx',
   'route-screens.tsx',
   'route-sync-runtime.tsx',
+  '../../components/map-attribution-model.ts',
   '../../config/environment.ts',
 ]
   .map((path) => readFileSync(new URL(path, import.meta.url), 'utf8'))
@@ -25,6 +26,6 @@ describe('Phase 6 provider/privacy configuration', () => {
   it('keeps explicit map disclosure and attribution', () => {
     expect(sources).toContain('Map network is off');
     expect(sources).toContain('OpenStreetMap');
-    expect(sources).toContain('OpenFreeMap');
+    expect(sources).toContain('environment.mapProvider.name');
   });
 });

@@ -26,8 +26,10 @@ import {
   StatsController,
 } from './stats-controller';
 import {
+  CALENDAR_CELL_SIZE,
   deviceTimezone,
   firstWeekday,
+  formatCalendarDate,
   formatDistance,
   formatDuration,
   monthCells,
@@ -320,50 +322,67 @@ export function StatsScreen({
           year: 'numeric',
         }).format(state.month)}
       </Text>
-      <View style={styles.grid}>
-        {weekdayNames.map((name) => (
-          <Text
-            key={name}
-            style={[styles.cell, { color: theme.textSecondary }]}
-          >
-            {name}
-          </Text>
-        ))}
-        {cells.map((cell) => (
-          <Pressable
-            key={cell.date}
-            accessibilityRole="button"
-            accessibilityLabel={`${cell.date}, ${marks[cell.date] ?? 0} activities`}
-            onPress={() => cell.inMonth && controller.selectDate(cell.date)}
-            style={[
-              styles.cell,
-              styles.day,
-              {
-                borderColor:
-                  state.selectedDate === cell.date
-                    ? theme.action
-                    : 'transparent',
-              },
-            ]}
-          >
+      <ScrollView
+        accessibilityLabel="Calendar grid. Swipe horizontally to view all seven columns."
+        horizontal
+        showsHorizontalScrollIndicator
+      >
+        <View style={styles.grid}>
+          {weekdayNames.map((name, index) => (
             <Text
-              style={{
-                color: cell.inMonth ? theme.textPrimary : theme.textSecondary,
-              }}
+              key={`${index}-${name}`}
+              style={[styles.cell, { color: theme.textSecondary }]}
             >
-              {cell.day}
+              {name}
             </Text>
-            {marks[cell.date] ? (
-              <Text style={{ color: theme.action }}>● {marks[cell.date]}</Text>
-            ) : null}
-          </Pressable>
-        ))}
-      </View>
+          ))}
+          {cells.map((cell) => (
+            <Pressable
+              key={cell.date}
+              accessibilityRole="button"
+              accessibilityLabel={`${formatCalendarDate(cell.date, locale)}, ${new Intl.NumberFormat(locale).format(marks[cell.date] ?? 0)} activities`}
+              accessibilityState={{
+                disabled: !cell.inMonth,
+                selected: state.selectedDate === cell.date,
+              }}
+              disabled={!cell.inMonth}
+              onPress={() => controller.selectDate(cell.date)}
+              style={[
+                styles.cell,
+                styles.day,
+                {
+                  borderColor:
+                    state.selectedDate === cell.date
+                      ? theme.action
+                      : 'transparent',
+                },
+              ]}
+            >
+              <Text
+                style={{
+                  color: cell.inMonth ? theme.textPrimary : theme.textSecondary,
+                }}
+              >
+                {cell.day}
+              </Text>
+              {marks[cell.date] ? (
+                <Text
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                  style={{ color: theme.action }}
+                >
+                  ●
+                </Text>
+              ) : null}
+            </Pressable>
+          ))}
+        </View>
+      </ScrollView>
       <Text
         accessibilityRole="header"
         style={[styles.cardTitle, { color: theme.textPrimary }]}
       >
-        Activities on {state.selectedDate}
+        Activities on {formatCalendarDate(state.selectedDate, locale)}
       </Text>
       {view.canShowCurrentEmptyState && dayItems.length === 0 ? (
         <Body>No synchronized activities on this day.</Body>
@@ -389,7 +408,7 @@ export function StatsScreen({
               profile?.units ?? 'metric',
               locale,
             )}{' '}
-            · {formatDuration(item.stats.moving_time_s)}
+            · {formatDuration(item.stats.moving_time_s, locale)}
           </Text>
         </Pressable>
       ))}
@@ -409,16 +428,26 @@ const styles = StyleSheet.create({
     padding: spacing.space3,
   },
   cardTitle: { fontSize: 20, fontWeight: '700', lineHeight: 28 },
-  cell: { textAlign: 'center', width: '14.285%' },
+  cell: {
+    minHeight: CALENDAR_CELL_SIZE,
+    textAlign: 'center',
+    width: CALENDAR_CELL_SIZE,
+  },
   day: {
     alignItems: 'center',
     borderRadius: 8,
     borderWidth: 2,
-    height: 52,
     justifyContent: 'center',
+    minHeight: 64,
+    paddingVertical: spacing.space1,
   },
   filters: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.space2 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: spacing.space1 },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    rowGap: spacing.space1,
+    width: CALENDAR_CELL_SIZE * 7,
+  },
   loadingRow: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -434,7 +463,7 @@ const styles = StyleSheet.create({
   pill: {
     borderRadius: 20,
     borderWidth: 1,
-    minHeight: 44,
+    minHeight: 48,
     minWidth: 58,
     paddingHorizontal: 14,
     paddingVertical: 11,

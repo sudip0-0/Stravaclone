@@ -1,0 +1,179 @@
+{
+  "schema_version": 1,
+  "operations": [
+    {
+      "id": "auth.register",
+      "method": "POST",
+      "path": "/v1/auth/register",
+      "principal": "anonymous"
+    },
+    {
+      "id": "auth.register_confirm",
+      "method": "POST",
+      "path": "/v1/auth/register/confirm",
+      "principal": "anonymous"
+    },
+    {
+      "id": "auth.login",
+      "method": "POST",
+      "path": "/v1/auth/login",
+      "principal": "anonymous"
+    },
+    {
+      "id": "auth.refresh",
+      "method": "POST",
+      "path": "/v1/auth/refresh",
+      "principal": "refresh_token"
+    },
+    {
+      "id": "auth.logout",
+      "method": "POST",
+      "path": "/v1/auth/logout",
+      "principal": "refresh_token"
+    },
+    {
+      "id": "auth.password_reset_request",
+      "method": "POST",
+      "path": "/v1/auth/password-reset/request",
+      "principal": "anonymous"
+    },
+    {
+      "id": "auth.password_reset_confirm",
+      "method": "POST",
+      "path": "/v1/auth/password-reset/confirm",
+      "principal": "reset_token"
+    },
+    {
+      "id": "user.read",
+      "method": "GET",
+      "path": "/v1/me",
+      "principal": "access_token"
+    },
+    {
+      "id": "user.update",
+      "method": "PATCH",
+      "path": "/v1/me",
+      "principal": "access_token"
+    },
+    {
+      "id": "user.delete",
+      "method": "DELETE",
+      "path": "/v1/me",
+      "principal": "access_token"
+    },
+    {
+      "id": "activity.create",
+      "method": "POST",
+      "path": "/v1/activities",
+      "principal": "access_token"
+    },
+    {
+      "id": "activity.list",
+      "method": "GET",
+      "path": "/v1/activities",
+      "principal": "access_token"
+    },
+    {
+      "id": "activity.read",
+      "method": "GET",
+      "path": "/v1/activities/:id",
+      "principal": "access_token"
+    },
+    {
+      "id": "activity.update",
+      "method": "PATCH",
+      "path": "/v1/activities/:id",
+      "principal": "access_token"
+    },
+    {
+      "id": "activity.delete",
+      "method": "DELETE",
+      "path": "/v1/activities/:id",
+      "principal": "access_token"
+    },
+    {
+      "id": "photo.initiate",
+      "method": "POST",
+      "path": "/v1/activities/:activity_id/photos/initiate",
+      "principal": "access_token"
+    },
+    {
+      "id": "photo.reissue",
+      "method": "POST",
+      "path": "/v1/activities/:activity_id/photos/:photo_id/reissue",
+      "principal": "access_token"
+    },
+    {
+      "id": "photo.complete",
+      "method": "POST",
+      "path": "/v1/activities/:activity_id/photos/:photo_id/complete",
+      "principal": "access_token"
+    },
+    {
+      "id": "photo.list",
+      "method": "GET",
+      "path": "/v1/activities/:activity_id/photos",
+      "principal": "access_token"
+    },
+    {
+      "id": "photo.download",
+      "method": "GET",
+      "path": "/v1/activities/:activity_id/photos/:photo_id/download",
+      "principal": "access_token"
+    },
+    {
+      "id": "photo.delete",
+      "method": "DELETE",
+      "path": "/v1/activities/:activity_id/photos/:photo_id",
+      "principal": "access_token"
+    },
+    {
+      "id": "route.create",
+      "method": "POST",
+      "path": "/v1/routes",
+      "principal": "access_token"
+    },
+    {
+      "id": "route.list",
+      "method": "GET",
+      "path": "/v1/routes",
+      "principal": "access_token"
+    },
+    {
+      "id": "route.read",
+      "method": "GET",
+      "path": "/v1/routes/:id",
+      "principal": "access_token"
+    },
+    {
+      "id": "route.update",
+      "method": "PATCH",
+      "path": "/v1/routes/:id",
+      "principal": "access_token"
+    },
+    {
+      "id": "route.delete",
+      "method": "DELETE",
+      "path": "/v1/routes/:id",
+      "principal": "access_token"
+    },
+    {
+      "id": "stats.read",
+      "method": "GET",
+      "path": "/v1/stats",
+      "principal": "access_token"
+    },
+    {
+      "id": "calendar.read",
+      "method": "GET",
+      "path": "/v1/calendar",
+      "principal": "access_token"
+    },
+    {
+      "id": "calendar.day_read",
+      "method": "GET",
+      "path": "/v1/calendar/day",
+      "principal": "access_token"
+    }
+  ]
+}

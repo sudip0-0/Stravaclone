@@ -8,7 +8,7 @@ Do not describe or market Trail as Strava, and do not add social feeds, follows,
 
 ## Repository state and target structure
 
-The repository now contains the Phase 0 pnpm application scaffold and executable workspace commands. The monorepo layout is:
+The repository implements the application through the local Phase 8 hardening baseline. Provider deployment, public legal URLs, store approval, measured beta metrics, and physical-device/release evidence remain open. The monorepo layout is:
 
 ```text
 apps/mobile/          Expo React Native application
@@ -24,7 +24,7 @@ Tasks.md              Ordered implementation backlog
 ImplementationPlan.md Phase-by-phase execution and delegation gates
 ```
 
-The implemented baseline is Node 22, pnpm workspaces, Expo SDK 56 with Expo's React Native version, Fastify, Zod, Drizzle/Postgres, Vitest, ESLint, and Prettier. Local infrastructure is Docker Postgres 17, MinIO, and Mailpit. Keep actual bootstrap commands in the root `README.md`; the scaffold does not imply that product features are complete.
+The implemented baseline is Node 22.23.2, pnpm workspaces, Expo SDK 57 with Expo's React Native version, Fastify, Zod, Drizzle/Postgres, Vitest, ESLint, and Prettier. Local infrastructure is Docker Postgres 17, MinIO, and Mailpit. Keep actual bootstrap and verification commands in the root `README.md`; local implementation evidence does not satisfy external provider, legal/store, beta-metric, or physical-device release gates.
 
 ## Engineering principles
 
@@ -73,11 +73,11 @@ Use the repository roles by exact `.devin` name:
 - **`code-reviewer`** independently reviews correctness, maintainability, requirements, and regressions.
 - The parent orchestrator owns sequencing, cross-package integration, decision consistency, release gates, external-provider coordination, and final review. Follow `.devin/orchestration.md` for phase leadership/support and keep implementer and reviewer runs independent.
 
-Follow `ImplementationPlan.md` phase gates and commit boundaries. Parallel work is allowed only when contracts are accepted and file ownership does not overlap. No agent may claim app implementation is complete while this repository remains documentation-only.
+Follow `ImplementationPlan.md` phase gates and commit boundaries. Parallel work is allowed only when contracts are accepted and file ownership does not overlap. Describe local implementation, automated evidence, external dependencies, and release readiness separately; never infer a device, provider, legal, store, or release pass from code or templates.
 
 ## Changes, commits, and pull requests
 
-The only existing commit is `init`, so no mature commit convention exists. Use concise imperative subjects, preferably Conventional Commit prefixes such as `feat:`, `fix:`, `test:`, `docs:`, and `chore:`. Keep commits focused. Pull requests should state the user outcome, PRD IDs, data/API changes, permission or privacy impact, screenshots for UI work, and exact verification performed. Call out migrations, provider dependencies, feature flags, and unresolved risks.
+Repository history uses concise imperative Conventional Commit-style subjects (`feat:`, `fix:`, `test:`, `docs:`, and `chore:`); continue that convention and keep commits focused. Pull requests should state the user outcome, PRD IDs, data/API changes, permission or privacy impact, screenshots for UI work, and exact verification performed. Call out migrations, provider dependencies, feature flags, and unresolved risks.
 
 Never commit credentials, provider keys, `.env` files, production GPS data, or user photos. Destructive migrations, account deletion behavior, token changes, and storage cleanup require explicit tests and reviewer attention.
 

@@ -1,0 +1,88 @@
+# Operator-reviewed Koyeb Compose template. Running `koyeb compose` has real effects.
+# Replace region and immutable image placeholders; create every referenced secret first.
+app:
+  name: trail-beta
+
+services:
+  - definition:
+      name: trail-api-beta
+      type: WEB
+      docker:
+        image: <IMMUTABLE_RUNTIME_IMAGE_BY_DIGEST>
+      regions:
+        - <KOYEB_REGION>
+      instance_types:
+        - scopes: ['region:<KOYEB_REGION>']
+          type: free
+      scalings:
+        - scopes: ['region:<KOYEB_REGION>']
+          min: 0
+          max: 1
+      ports:
+        - port: 3000
+          protocol: http
+      routes:
+        - path: /
+          port: 3000
+      health_checks:
+        - grace_period: 10
+          interval: 30
+          restart_limit: 3
+          timeout: 5
+          http:
+            port: 3000
+            path: /health
+            method: GET
+      env:
+        - { key: NODE_ENV, value: production }
+        - { key: HOST, value: 0.0.0.0 }
+        - { key: PORT, value: '3000' }
+        - { key: LOG_LEVEL, value: info }
+        - { key: TRUST_PROXY_HOPS, value: '1' }
+        - { key: BODY_LIMIT_BYTES, value: '32768' }
+        - { key: READINESS_TIMEOUT_MS, value: '1000' }
+        - { key: READINESS_CACHE_MS, value: '1000' }
+        - { key: DATABASE_URL, value: '{{ secret.TRAIL_BETA_DATABASE_URL }}' }
+        - {
+            key: OBJECT_STORAGE_ENDPOINT,
+            value: '{{ secret.TRAIL_BETA_R2_ENDPOINT }}',
+          }
+        - { key: OBJECT_STORAGE_PORT, value: '443' }
+        - { key: OBJECT_STORAGE_USE_SSL, value: 'true' }
+        - {
+            key: OBJECT_STORAGE_ACCESS_KEY,
+            value: '{{ secret.TRAIL_BETA_R2_ACCESS_KEY }}',
+          }
+        - {
+            key: OBJECT_STORAGE_SECRET_KEY,
+            value: '{{ secret.TRAIL_BETA_R2_SECRET_KEY }}',
+          }
+        - {
+            key: OBJECT_STORAGE_BUCKET,
+            value: '{{ secret.TRAIL_BETA_R2_BUCKET }}',
+          }
+        - { key: EMAIL_MODE, value: smtp }
+        - { key: EMAIL_PROVIDER, value: resend }
+        - { key: SMTP_HOST, value: smtp.resend.com }
+        - { key: SMTP_PORT, value: '465' }
+        - { key: SMTP_SECURE, value: 'true' }
+        - { key: SMTP_REQUIRE_TLS, value: 'true' }
+        - { key: SMTP_USER, value: '{{ secret.TRAIL_BETA_SMTP_USER }}' }
+        - { key: SMTP_PASSWORD, value: '{{ secret.TRAIL_BETA_SMTP_PASSWORD }}' }
+        - { key: SMTP_FROM, value: '{{ secret.TRAIL_BETA_SMTP_FROM }}' }
+        - { key: MAP_STYLE_URL, value: '{{ secret.TRAIL_BETA_MAP_STYLE_URL }}' }
+        - {
+            key: JWT_SIGNING_KEY,
+            value: '{{ secret.TRAIL_BETA_JWT_SIGNING_KEY }}',
+          }
+        - {
+            key: EMAIL_OUTBOX_KEY,
+            value: '{{ secret.TRAIL_BETA_EMAIL_OUTBOX_KEY }}',
+          }
+        - {
+            key: REFRESH_RECOVERY_KEY,
+            value: '{{ secret.TRAIL_BETA_REFRESH_RECOVERY_KEY }}',
+          }
+        - { key: JWT_ISSUER, value: trail-api-beta }
+        - { key: JWT_AUDIENCE, value: trail-mobile-beta }
+        - { key: OTEL_ENABLED, value: 'false' }

@@ -1,6 +1,6 @@
 # Trail v1 Implementation Plan
 
-**Status:** Phase 0 local foundation integrated; Phase 1 local implementation complete; external Phase 0 decisions remain
+**Status:** Implemented through local Phase 8 hardening; external provider, legal/store, measured-beta, physical-device, and release gates remain open
 **Authority:** `PRD.md` is authoritative. This plan sequences delivery; it does not weaken a PRD MUST.  
 **Derived documents:** `product.md`, `Architecture.md`, `Tasks.md`, and `Agents.md`  
 **Execution model:** The parent orchestrator coordinates bounded assignments using the role ownership in `.devin/orchestration.md`. Phase 0 is led by `infrastructure-specialist`, supported by `swe-worker`, `security-specialist`, and `testing-specialist`, with independent `code-reviewer` and security review.
@@ -17,7 +17,7 @@
 
 ## 2. Fixed implementation baseline
 
-- Node.js 22 and pnpm workspaces.
+- Node.js 22.23.2 and pnpm workspaces.
 - Expo SDK 57; use the React Native version required by Expo.
 - Fastify Node/TypeScript modular API.
 - Zod for shared wire contracts and environment validation.
@@ -543,6 +543,13 @@ Prove the complete PRD journeys on real devices and deploy a transparent, recove
 - Authorization matrix, rate-limit, dependency/security scan, log-scrub assertions, backup artifact/restore validation, synthetic uptime/cold-start checks.
 - Release configuration scan for dev secrets, public buckets, OSM Foundation tile URLs, demo routing APIs, and missing attribution.
 
+### Local status and evidence (2026-08-23)
+
+- **Complete in the current Phase 8 worktree for the next commit; local hardening only:** generated authorization-matrix coverage; API abuse/rate-limit and private-object checks; release/dependency/config scans; structured-log and OpenTelemetry redaction/integration tests; local static accessibility and locale/unit fixtures; credential-free Koyeb/environment templates; and release/legal/provider/runbook drafts. This evidence describes the current uncommitted Phase 8 worktree, not a baseline predating Phase 7.
+- The encrypted logical-backup harness restores synthetic data only into a new database and exercises authenticated canonical HMAC-manifest and ciphertext tampering, wrong encryption/authentication keys, failed-restore cleanup, atomic publication, concurrent collision-resistant names, retention, and overwrite refusal. The release flow requires a trusted operator to run the immutable migration image before manually changing the runtime image; repository templates and CI never deploy.
+- Mobile `EXPO_PUBLIC_MAP_STYLE_URL`, `EXPO_PUBLIC_MAP_PROVIDER_NAME`, and `EXPO_PUBLIC_MAP_PROVIDER_URL` are centrally validated and consumed by recording, activity, and route maps. OpenFreeMap HTTPS is the default; credentials, queries, fragments, OSM Foundation public tile hosts, insecure remote URLs, and insecure production URLs are rejected. OpenStreetMap attribution remains visible for every provider. Provider fallback uses build-time Expo values and requires a rebuilt/re-released mobile app, not a live server-side switch.
+- Local checks do **not** approve public legal URLs/store declarations, provider accounts/deployment, R2 policy, map capacity, external backup scheduling/destination/restore, telemetry alert delivery, beta crash/upload targets, physical-device accessibility/background GPS, store tracks, or a release decision.
+
 ### Manual/external blockers
 
 - Final brand/domain/legal owner and globally unique store IDs.
@@ -579,4 +586,4 @@ Prove the complete PRD journeys on real devices and deploy a transparent, recove
 
 ## 4. Completion semantics
 
-This document records intended work only. A checked decision in `Tasks.md` means the choice is settled, not that code, accounts, infrastructure, QA, or release work exists. Phase completion requires its acceptance evidence and parent-orchestrator review; Trail v1 remains incomplete until the authoritative PRD acceptance criteria pass.
+This document records both intended work and explicitly labeled local evidence. A checked `LOCAL` task means its code/template/automated check passed; it does not imply accounts, deployment, provider behavior, legal/store approval, beta metrics, physical-device QA, or release readiness. Phase acceptance still requires the named external evidence and parent-orchestrator review; Trail v1 remains release-blocked until the authoritative PRD acceptance criteria pass.

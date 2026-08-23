@@ -30,7 +30,8 @@ suite('Phase 7 stats and calendar API', () => {
   let sql: ReturnType<typeof postgres>;
   let app: ReturnType<typeof buildApp>;
   let ownerToken: string;
-  const auth = () => ({ authorization: `Bearer ${ownerToken}` });
+  let otherToken: string;
+  const auth = (token = ownerToken) => ({ authorization: `Bearer ${token}` });
   beforeAll(async () => {
     const url = new URL(baseDatabaseUrl!);
     admin = postgres(url.toString(), { max: 1, onnotice: () => undefined });
@@ -70,6 +71,7 @@ suite('Phase 7 stats and calendar API', () => {
     app = buildApp({ config: testConfig, providers, logger: false });
     await app.ready();
     ownerToken = (await signAccessToken(owner, 0, testConfig)).token;
+    otherToken = (await signAccessToken(other, 0, testConfig)).token;
   });
   beforeEach(async () => {
     await sql`truncate trail.users cascade`;
@@ -205,6 +207,33 @@ suite('Phase 7 stats and calendar API', () => {
     expect(
       day.json<CalendarDayResponse>().items.map((item) => item.id),
     ).toEqual(['00000000-0000-4000-8000-000000000011']);
+  });
+
+  it('isolates every stats and calendar read to the authenticated owner', async () => {
+    await activity(12, owner, 'run', '2026-03-10T12:00:00.000Z');
+    const urls = [
+      statsUrl(),
+      '/v1/calendar?year=2026&month=3&timezone=America%2FNew_York&sport=all',
+      '/v1/calendar/day?date=2026-03-10&timezone=America%2FNew_York&sport=all',
+    ];
+    for (const url of urls) {
+      const response = await app.inject({
+        method: 'GET',
+        url,
+        headers: auth(otherToken),
+      });
+      expect(response.statusCode, url).toBe(200);
+      expect(response.body, url).not.toContain(
+        '00000000-0000-4000-8000-000000000012',
+      );
+      if (url.startsWith('/v1/stats')) {
+        expect(response.json<StatsResponse>().totals.activity_count).toBe(0);
+      } else if (url.startsWith('/v1/calendar/day')) {
+        expect(response.json<CalendarDayResponse>().items).toEqual([]);
+      } else {
+        expect(response.json<CalendarResponse>().days).toEqual([]);
+      }
+    }
   });
 
   it('reflects late inserts and deletion without stale rollups', async () => {

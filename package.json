@@ -9,8 +9,8 @@
   },
   "packageManager": "pnpm@10.32.1",
   "scripts": {
-    "audit:prod": "pnpm audit --prod --audit-level moderate --ignore GHSA-w3rx-r6r6-pgpr --ignore GHSA-5p2g-fcmc-qvqq",
-    "audit:security": "pnpm audit:prod && pnpm audit --audit-level moderate --ignore GHSA-w3rx-r6r6-pgpr --ignore GHSA-5p2g-fcmc-qvqq",
+    "audit:prod": "node scripts/security/audit-gate.mjs --prod",
+    "audit:security": "pnpm audit:prod && node scripts/security/audit-gate.mjs",
     "build": "pnpm -r --if-present build",
     "clean": "pnpm -r --if-present clean",
     "dev:api": "pnpm --filter @trail/api dev",
@@ -21,6 +21,12 @@
     "infra:logs": "docker compose -f infra/compose.yaml logs -f",
     "infra:reset": "docker compose -f infra/compose.yaml down --volumes",
     "infra:up": "docker compose -f infra/compose.yaml up -d --wait postgres minio mailpit && docker compose -f infra/compose.yaml run --rm minio-init",
+    "infra:validate": "node scripts/ops/validate-config.mjs",
+    "ops:test-backup": "bash scripts/ops/validate-backup-restore.sh",
+    "security:release-scan": "node scripts/security/release-scan.mjs",
+    "security:test": "node --test scripts/security/*.test.mjs",
+    "security:supply-chain": "bash scripts/security/supply-chain-gate.sh",
+    "security:docs:check": "node scripts/security/generate-authorization-docs.mjs --check",
     "lint": "eslint .",
     "test": "pnpm -r --if-present test",
     "test:api": "pnpm --filter @trail/api test",
@@ -35,7 +41,8 @@
     "prettier": "3.6.2",
     "typescript": "5.9.3",
     "typescript-eslint": "8.67.0",
-    "vitest": "3.2.7"
+    "vitest": "3.2.7",
+    "yaml": "2.9.0"
   },
   "pnpm": {
     "overrides": {
@@ -46,12 +53,6 @@
       "fast-xml-parser": "5.7.0",
       "protobufjs": "8.7.2",
       "uuid@<11.1.1": "11.1.1"
-    },
-    "auditConfig": {
-      "ignoreCves": [
-        "GHSA-w3rx-r6r6-pgpr",
-        "GHSA-5p2g-fcmc-qvqq"
-      ]
     }
   }
 }

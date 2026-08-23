@@ -1,6 +1,7 @@
 # Trail v1 Architecture
 
-**Status:** Target architecture for implementation  
+**Status:** Implemented local baseline through Phase 8 hardening; external release gates remain open
+
 **Derived from:** `PRD.md` v1.0, dated 2026-08-21  
 **Scope:** iOS and Android mobile application, REST API, relational data, object storage, and external map/geo services
 
@@ -55,7 +56,7 @@ packages/
 infra/                         local compose and deployment definitions
 ```
 
-This is a target, not current repository state. Bootstrap uses **Node.js 22** and **pnpm workspaces**. The mobile app targets **Expo SDK 57** and the React Native version selected by that Expo SDK; do not pin or upgrade React Native independently. The API is a **Fastify** modular monolith. **Zod** is the single boundary-validation system for shared contracts and environment variables, **Drizzle ORM** owns the Postgres schema and migrations, and **Vitest** is the unit/integration test runner. **ESLint** and **Prettier** are required workspace checks.
+The implemented baseline uses **Node.js 22.23.2** and **pnpm workspaces**. The mobile app targets **Expo SDK 57** and the React Native version selected by that Expo SDK; do not pin or upgrade React Native independently. The API is a **Fastify** modular monolith. **Zod** is the single boundary-validation system for shared contracts and environment variables, **Drizzle ORM** owns the Postgres schema and migrations, and **Vitest** is the unit/integration test runner. **ESLint** and **Prettier** are required workspace checks.
 
 ## 4. Mobile architecture
 
@@ -223,8 +224,8 @@ Downloads use 15-minute signed URLs. The object-storage port exposes presigned P
 ## 8. Maps, routing, and elevation
 
 - Render with MapLibre native in the mobile app.
-- Local development and the free closed beta use the **OpenFreeMap public instance**, subject to its published terms and capacity, with both OpenStreetMap and OpenFreeMap attribution visible on every map. This is not an OSM Foundation public tile server.
-- **Self-hosted Protomaps/PMTiles** is the documented fallback if public-instance terms, reliability, or quota are unsuitable. A public launch must revalidate tile capacity/licensing; it cannot assume the beta service level.
+- Local development and the free closed beta use the **OpenFreeMap public instance**, subject to its published terms and capacity, with both OpenStreetMap and OpenFreeMap attribution visible on every map. This is not an OSM Foundation public tile server. Recording, activity, and route maps consume the same validated build-time `EXPO_PUBLIC_MAP_STYLE_URL`, `EXPO_PUBLIC_MAP_PROVIDER_NAME`, and `EXPO_PUBLIC_MAP_PROVIDER_URL` values.
+- **Self-hosted Protomaps/PMTiles** is the documented fallback if public-instance terms, reliability, or quota are unsuitable. Changing any Expo public map value requires a rebuilt, tested, and re-released app, not a live runtime switch. The configured provider disclosure changes with its name/URL, while OpenStreetMap attribution remains visible for every provider. A public launch must revalidate tile capacity/licensing; it cannot assume the beta service level.
 - Tap-to-place waypoints and raw polyline are required.
 - **Snap-to-roads is deferred from v1.** Do not call an unlicensed or public demo routing API. Preserve a `RoutingProvider` boundary for a later licensed/self-hosted implementation.
 - v1 elevation uses the accepted GPS altitude stream with deterministic smoothing and gain thresholds. Preserve source/fallback status in responses so the UI does not imply DEM precision.
@@ -312,7 +313,7 @@ These are implementation decisions derived from the PRD. Where a PRD SHOULD is c
 ### External/manual blockers
 
 1. Final brand, domain, legal owner, unique App Store/Play identifiers, and paid store accounts.
-2. Apple/Google OAuth registrations, callback configuration, and real-device/provider proof. The account-linking policy is approved and implemented, but only fake-verifier and local JWKS evidence exists.
+2. Apple/Google OAuth registrations, callback configuration, approved account-linking/step-up policy, implementation, and real-device/provider proof. No SSO/linking API routes are release-ready.
 3. Beta region selection, privacy/terms URLs, and provider account creation/terms review.
 4. Confirmation that free-tier backup facilities meet the daily target; otherwise an external scheduled export and destination.
 5. Real-device background-location evidence and store review approval.

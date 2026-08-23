@@ -12,22 +12,23 @@ import { registerPhotoRoutes } from './photos/routes.js';
 import type { DependencyStatus, Providers } from './providers/ports.js';
 import { registerRouteRoutes } from './routes/routes.js';
 import { registerStatsRoutes } from './stats/routes.js';
+import {
+  setActiveHttpRouteTemplate,
+  unmatchedHttpRouteTemplate,
+} from './telemetry/privacy.js';
 
 export interface BuildAppOptions {
   readonly config: ApiConfig;
   readonly providers: Providers;
   readonly logger?: FastifyServerOptions['logger'];
+  readonly onRouteRegistered?: (route: {
+    readonly method: string | readonly string[];
+    readonly url: string;
+    readonly hasPrincipalGuard: boolean;
+  }) => void;
 }
 
 const trustedRequestIdPattern = /^[A-Za-z0-9._-]{1,64}$/;
-
-export function sanitizePathname(url: string): string {
-  try {
-    return new URL(url, 'http://internal.invalid').pathname;
-  } catch {
-    return '/';
-  }
-}
 
 export function serializeRequest(request: {
   readonly id: string | undefined;
@@ -41,7 +42,7 @@ export function serializeRequest(request: {
       request.id && trustedRequestIdPattern.test(request.id)
         ? request.id
         : 'invalid-request-id',
-    route: request.routeOptions?.url ?? sanitizePathname(request.url ?? '/'),
+    route: request.routeOptions?.url ?? 'unmatched-route',
   };
 }
 
@@ -61,6 +62,13 @@ export function createLoggerOptions(
         'req.body.rotation_request_id',
         'req.body.identity_token',
         'req.body.signed_url',
+        'req.body.upload_url',
+        'req.body.download_url',
+        'req.body.form_fields',
+        'req.body.points',
+        'req.body.gps',
+        'req.body.exif',
+        'req.body.metadata',
         'res.headers["set-cookie"]',
         'authorization',
         'cookie',
@@ -80,7 +88,24 @@ export function createLoggerOptions(
         'payload_tag',
         'successor_tag',
         'password_hash',
+        'points',
+        'gps',
+        'gps_points',
+        'track',
+        'coordinates',
+        'latitude',
+        'longitude',
+        'capture_latitude',
+        'capture_longitude',
+        'exif',
+        'metadata',
         'signed_url',
+        'upload_url',
+        'download_url',
+        'form_fields',
+        'signed_post_fields',
+        'provider_token',
+        'access_token',
         'smtp_password',
         'jwt_signing_key',
         'email_outbox_key',
@@ -161,6 +186,20 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
         ? false
         : options.config.TRUST_PROXY_HOPS,
   });
+  if (options.onRouteRegistered) {
+    app.addHook('onRoute', (route) => {
+      const hooks = [route.onRequest, route.preHandler].flatMap((hook) =>
+        Array.isArray(hook) ? hook : hook ? [hook] : [],
+      );
+      options.onRouteRegistered?.({
+        method: route.method,
+        url: route.url,
+        hasPrincipalGuard: hooks.some(
+          (hook) => hook.name === 'authenticateAccessToken',
+        ),
+      });
+    });
+  }
   registerAuthRoutes(app, options.config, options.providers);
   registerActivityRoutes(app, options.config, options.providers);
   registerPhotoRoutes(app, options.config, options.providers);
@@ -219,6 +258,9 @@ export function buildApp(options: BuildAppOptions): FastifyInstance {
   }
 
   app.addHook('onRequest', async (request, reply) => {
+    setActiveHttpRouteTemplate(
+      request.routeOptions.url ?? unmatchedHttpRouteTemplate,
+    );
     void reply.header('x-request-id', request.id);
   });
 

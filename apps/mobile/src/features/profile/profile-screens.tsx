@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Linking,
@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Text,
   View,
+  type TextInput,
 } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { Sport, UnitSystem } from '@trail/contracts';
@@ -255,6 +256,7 @@ export function SettingsScreen({ navigation }: Props<'Settings'>) {
   const [showDelete, setShowDelete] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const [deleting, setDeleting] = useState(false);
+  const deletePasswordRef = useRef<TextInput>(null);
   const providerStatus = (provider: 'apple' | 'google') => {
     if (profile?.identities.some((identity) => identity.provider === provider))
       return 'Linked';
@@ -310,6 +312,7 @@ export function SettingsScreen({ navigation }: Props<'Settings'>) {
   const beginDelete = () => {
     setError(null);
     setShowDelete(true);
+    setTimeout(() => deletePasswordRef.current?.focus(), 0);
   };
   const confirmDelete = () =>
     Alert.alert(
@@ -422,9 +425,9 @@ export function SettingsScreen({ navigation }: Props<'Settings'>) {
       <Row title="Privacy policy" onPress={() => legal('Privacy policy')} />
       <Row title="Terms" onPress={() => legal('Terms')} />
       <Row
-        title="Map attribution"
-        value="OpenStreetMap, OpenFreeMap"
-        onPress={() => void Linking.openURL('https://openfreemap.org/terms/')}
+        title="Map provider"
+        value={environment.mapProvider.name}
+        onPress={() => void Linking.openURL(environment.mapProvider.url)}
       />
       <Text accessibilityRole="header" style={styles.sectionTitle}>
         Account
@@ -444,6 +447,7 @@ export function SettingsScreen({ navigation }: Props<'Settings'>) {
           </Body>
           <Field
             autoComplete="current-password"
+            inputRef={deletePasswordRef}
             label="Current password"
             onChangeText={setDeletePassword}
             secureTextEntry

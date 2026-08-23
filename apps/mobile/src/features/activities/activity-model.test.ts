@@ -20,6 +20,8 @@ describe('activity presentation model', () => {
     expect(formatActivitySpeed(10, 'imperial')).toBe('22.4 mph');
     expect(formatActivityPace(300, 'metric')).toBe('5:00 /km');
     expect(formatElevation(100, 'imperial')).toBe('328 ft');
+    expect(formatActivityDistance(1609.344, 'metric', 'de-DE')).toBe('1,61 km');
+    expect(formatActivitySpeed(10, 'metric', 'de-DE')).toBe('36,0 km/h');
   });
   it('shows pending rows first by chronology, deduplicates synced IDs, and supports empty state data', () => {
     const old = { id: 'old', started_at: '2026-01-01T00:00:00Z' };

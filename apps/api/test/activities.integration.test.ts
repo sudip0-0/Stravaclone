@@ -354,6 +354,47 @@ suite('Phase 4 activity API', () => {
       [stagingObjectKey, normalizedObjectKey].sort(),
     );
   });
+  it('denies every cross-owner activity read, write, and delete while returning an isolated list', async () => {
+    const input = payload(randomUUID());
+    expect((await create(input)).statusCode).toBe(201);
+    const list = await app.inject({
+      method: 'GET',
+      url: '/v1/activities',
+      headers: authorization(otherToken),
+    });
+    expect(list.statusCode).toBe(200);
+    expect(list.json<ActivityListResponse>().items).toEqual([]);
+
+    const cases = [
+      { method: 'GET', url: `/v1/activities/${input.id}` },
+      {
+        method: 'PATCH',
+        url: `/v1/activities/${input.id}`,
+        payload: { title: 'cross-owner overwrite' },
+      },
+      {
+        method: 'DELETE',
+        url: `/v1/activities/${input.id}?confirmation=DELETE`,
+      },
+    ] as const;
+    for (const request of cases) {
+      const response = await app.inject({
+        ...request,
+        headers: authorization(otherToken),
+      });
+      expect(response.statusCode, `${request.method} ${request.url}`).toBe(404);
+    }
+    expect(
+      (
+        await app.inject({
+          method: 'GET',
+          url: `/v1/activities/${input.id}`,
+          headers: authorization(),
+        })
+      ).statusCode,
+    ).toBe(200);
+  });
+
   it('limits owner canonicalization to two concurrent creates', async () => {
     const requests = Array.from({ length: 3 }, () => {
       const input = payload(randomUUID());

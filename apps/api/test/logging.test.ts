@@ -41,6 +41,21 @@ describe('logging privacy', () => {
         successor_iv: 'sensitive-successor-iv',
         successor_tag: 'sensitive-successor-tag',
         signed_url: 'https://objects.invalid/sensitive-signature',
+        upload_url: 'https://objects.invalid/sensitive-upload-signature',
+        download_url: 'https://objects.invalid/sensitive-download-signature',
+        form_fields: {
+          policy: 'sensitive-post-policy',
+          signature: 'sensitive-post-field-signature',
+        },
+        points: [{ latitude: 51.501, longitude: -0.141 }],
+        gps: [[51.501, -0.141]],
+        exif: { GPSLatitude: 'sensitive-exif-latitude' },
+        metadata: {
+          capture_latitude: 'sensitive-capture-latitude',
+          capture_longitude: 'sensitive-capture-longitude',
+        },
+        provider_token: 'sensitive-provider-oauth-token',
+        access_token: 'sensitive-provider-access-token',
         smtp_password: 'sensitive-smtp-password',
         token: 'sensitive-token-value',
         token_hash: 'sensitive-token-hash',
@@ -81,6 +96,17 @@ describe('logging privacy', () => {
       'sensitive-successor-iv',
       'sensitive-successor-tag',
       'sensitive-signature',
+      'sensitive-upload-signature',
+      'sensitive-download-signature',
+      'sensitive-post-policy',
+      'sensitive-post-field-signature',
+      '51.501',
+      '-0.141',
+      'sensitive-exif-latitude',
+      'sensitive-capture-latitude',
+      'sensitive-capture-longitude',
+      'sensitive-provider-oauth-token',
+      'sensitive-provider-access-token',
       'sensitive-smtp-password',
       'sensitive-header',
       'query-token',
@@ -93,6 +119,35 @@ describe('logging privacy', () => {
       expect(logs).not.toContain(secret);
     }
     expect(logs).toContain('[REDACTED]');
+  });
+
+  it('logs a fixed route label for unmatched secret paths', async () => {
+    let logs = '';
+    const config = parseConfig({
+      ...validEnvironment,
+      NODE_ENV: 'development',
+      LOG_LEVEL: 'info',
+    });
+    const app = buildApp({
+      config,
+      providers: createTestProviders(),
+      logger: {
+        ...createLoggerOptions(config),
+        stream: { write: (line: string) => (logs += line) },
+      },
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/secret-404-account/secret-404-token?key=secret-404-query',
+    });
+    await app.close();
+
+    expect(response.statusCode).toBe(404);
+    expect(logs).toContain('unmatched-route');
+    expect(logs).not.toContain('secret-404-account');
+    expect(logs).not.toContain('secret-404-token');
+    expect(logs).not.toContain('secret-404-query');
   });
 
   it('does not log arbitrary exception messages or send them to telemetry', async () => {

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { formatCurrentMotion, formatDistance } from './recording-format';
+import {
+  formatAccuracy,
+  formatCurrentMotion,
+  formatDistance,
+} from './recording-format';
 const points = [
   { sequence: 0, latitude: 0, longitude: 0, timestampMs: 0 },
   { sequence: 1, latitude: 0, longitude: 0.000449, timestampMs: 10_000 },
@@ -14,6 +18,14 @@ describe('recording HUD unit and pace formatting', () => {
     expect(formatCurrentMotion(points, 'ride', 'imperial', 10_000)).toContain(
       'mph',
     );
+  });
+  it('localizes decimals and presents GPS accuracy in profile units', () => {
+    expect(formatDistance(1000, 'metric', 'de-DE')).toBe('1,00 km');
+    expect(formatAccuracy(10, 'metric', 'en-US')).toBe('±10 m');
+    expect(formatAccuracy(10, 'imperial', 'en-US')).toBe('±33 ft');
+    expect(
+      formatCurrentMotion(points, 'ride', 'metric', 10_000, 'de-DE'),
+    ).toMatch(/\d,\d km\/h/);
   });
   it('carries rounded pace seconds instead of rendering M:60', () => {
     const nearCarry = [points[0]!, { ...points[1]!, longitude: 0.0001499 }];

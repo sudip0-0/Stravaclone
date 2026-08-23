@@ -1,5 +1,9 @@
+import {
+  BatchSpanProcessor,
+  type SpanExporter,
+} from '@opentelemetry/sdk-trace-base';
 import type { ApiConfig } from '../config.js';
-import { applySafeHttpSpanAttributes } from './privacy.js';
+import { SanitizingSpanExporter } from './privacy.js';
 
 export interface TelemetryLifecycle {
   shutdown(): Promise<void>;
@@ -7,17 +11,27 @@ export interface TelemetryLifecycle {
 
 const noOpLifecycle: TelemetryLifecycle = { shutdown: async () => undefined };
 
+export interface TelemetryStartOptions {
+  readonly traceExporter?: SpanExporter;
+}
+
 export async function startTelemetry(
   config: ApiConfig,
+  options: TelemetryStartOptions = {},
 ): Promise<TelemetryLifecycle> {
   if (!config.OTEL_ENABLED) return noOpLifecycle;
 
-  const [{ NodeSDK }, { getNodeAutoInstrumentations }, { OTLPTraceExporter }] =
-    await Promise.all([
-      import('@opentelemetry/sdk-node'),
-      import('@opentelemetry/auto-instrumentations-node'),
-      import('@opentelemetry/exporter-trace-otlp-http'),
-    ]);
+  const [{ NodeSDK }, { getNodeAutoInstrumentations }] = await Promise.all([
+    import('@opentelemetry/sdk-node'),
+    import('@opentelemetry/auto-instrumentations-node'),
+  ]);
+  const traceExporter =
+    options.traceExporter ??
+    new (
+      await import('@opentelemetry/exporter-trace-otlp-http')
+    ).OTLPTraceExporter({
+      url: `${config.OTEL_EXPORTER_OTLP_ENDPOINT!.replace(/\/$/, '')}/v1/traces`,
+    });
   const sdk = new NodeSDK({
     instrumentations: [
       getNodeAutoInstrumentations({
@@ -40,18 +54,14 @@ export async function startTelemetry(
             server: { requestHeaders: [], responseHeaders: [] },
           },
           ignoreOutgoingRequestHook: () => true,
-          requestHook: (span, request) => {
-            applySafeHttpSpanAttributes(span, {
-              method: 'method' in request ? request.method : undefined,
-              url: 'url' in request ? request.url : undefined,
-            });
-          },
         },
       }),
     ],
-    traceExporter: new OTLPTraceExporter({
-      url: `${config.OTEL_EXPORTER_OTLP_ENDPOINT!.replace(/\/$/, '')}/v1/traces`,
-    }),
+    // Keep production batching while enforcing sanitization immediately before
+    // every export, after all instrumentations have had a chance to add data.
+    spanProcessors: [
+      new BatchSpanProcessor(new SanitizingSpanExporter(traceExporter)),
+    ],
   });
   sdk.start();
   return { shutdown: async () => sdk.shutdown() };

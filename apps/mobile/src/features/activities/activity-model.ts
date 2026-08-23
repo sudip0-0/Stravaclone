@@ -43,13 +43,20 @@ export function mergeActivityRows<T extends { id: string; started_at: string }>(
     )
     .slice(0, MAX_ACTIVITY_LIST_ITEMS);
 }
+function decimal(value: number, locale: string, digits: number): string {
+  return new Intl.NumberFormat(locale, {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(value);
+}
 export function formatActivityDistance(
   distanceM: number,
   units: UnitSystem,
+  locale = Intl.DateTimeFormat().resolvedOptions().locale || 'en-US',
 ): string {
   return units === 'metric'
-    ? `${metersToKilometers(distanceM).toFixed(2)} km`
-    : `${metersToMiles(distanceM).toFixed(2)} mi`;
+    ? `${decimal(metersToKilometers(distanceM), locale, 2)} km`
+    : `${decimal(metersToMiles(distanceM), locale, 2)} mi`;
 }
 export function formatActivityDuration(seconds: number): string {
   const whole = Math.max(0, Math.round(seconds));
@@ -63,11 +70,12 @@ export function formatActivityDuration(seconds: number): string {
 export function formatActivitySpeed(
   speedMps: number | null,
   units: UnitSystem,
+  locale = Intl.DateTimeFormat().resolvedOptions().locale || 'en-US',
 ): string {
   if (speedMps === null) return '—';
   return units === 'metric'
-    ? `${metersPerSecondToKilometersPerHour(speedMps).toFixed(1)} km/h`
-    : `${metersPerSecondToMilesPerHour(speedMps).toFixed(1)} mph`;
+    ? `${decimal(metersPerSecondToKilometersPerHour(speedMps), locale, 1)} km/h`
+    : `${decimal(metersPerSecondToMilesPerHour(speedMps), locale, 1)} mph`;
 }
 export function formatActivityPace(
   secondsPerUnit: number | null,
@@ -76,10 +84,14 @@ export function formatActivityPace(
   if (secondsPerUnit === null) return '—';
   return `${formatActivityDuration(secondsPerUnit)} /${units === 'metric' ? 'km' : 'mi'}`;
 }
-export function formatElevation(meters: number, units: UnitSystem): string {
+export function formatElevation(
+  meters: number,
+  units: UnitSystem,
+  locale = Intl.DateTimeFormat().resolvedOptions().locale || 'en-US',
+): string {
   return units === 'metric'
-    ? `${Math.round(meters)} m`
-    : `${Math.round(metersToFeet(meters))} ft`;
+    ? `${new Intl.NumberFormat(locale).format(Math.round(meters))} m`
+    : `${new Intl.NumberFormat(locale).format(Math.round(metersToFeet(meters)))} ft`;
 }
 export function elevationLabel(activity: Pick<Activity, 'elevation'>): string {
   return activity.elevation.source === 'gps_smoothed'
