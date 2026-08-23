@@ -43,7 +43,7 @@ jobs:
           docker run --rm --pull=always
           --mount "type=bind,src=$PWD,dst=/repo,readonly" -w /repo
           rhysd/actionlint:1.7.7@sha256:887a259a5a534f3c4f36cb02dca341673c6089431057242cdc931e9f133147e9
-      - uses: pnpm/action-setup@7088e561eb65bb68695d245aa206f005ef30921d # v4.1.0
+      - uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
         with:
           version: 10.32.1
           run_install: false
