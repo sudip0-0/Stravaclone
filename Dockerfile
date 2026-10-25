@@ -1,4 +1,4 @@
-FROM node:22.23.2-alpine3.23@sha256:46825fbbd4e996a78b7a2cdc08d75e38a5a505bdab95dcda55605359bf124bc6 AS build
+FROM node:26.12.1-alpine3.23@sha256:bc2b334006f15c7167bbeb2f08f28c2df883f7594a0470e04454ebe7560cfe68 AS build
 ENV CI=true
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
@@ -16,7 +16,7 @@ COPY packages packages
 RUN pnpm --filter @trail/api... build && \
     pnpm --filter @trail/api deploy --prod --no-optional /prod/api
 
-FROM node:22.23.2-alpine3.23@sha256:46825fbbd4e996a78b7a2cdc08d75e38a5a505bdab95dcda55605359bf124bc6 AS migration
+FROM node:26.12.1-alpine3.23@sha256:bc2b334006f15c7167bbeb2f08f28c2df883f7594a0470e04454ebe7560cfe68 AS migration
 ENV NODE_ENV=production
 WORKDIR /app
 RUN addgroup -S trail && adduser -S trail -G trail && \
@@ -27,7 +27,7 @@ COPY --from=build --chown=trail:trail /workspace/apps/api/src/db/migrations ./di
 USER trail
 CMD ["node", "dist/db/migrate.js"]
 
-FROM node:22.23.2-alpine3.23@sha256:46825fbbd4e996a78b7a2cdc08d75e38a5a505bdab95dcda55605359bf124bc6 AS runtime
+FROM node:26.12.1-alpine3.23@sha256:bc2b334006f15c7167bbeb2f08f28c2df883f7594a0470e04454ebe7560cfe68 AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 RUN addgroup -S trail && adduser -S trail -G trail && \
